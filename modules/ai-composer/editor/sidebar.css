@@ -1,0 +1,28 @@
+.ai-composer-generate-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.ai-composer-generate-btn .components-spinner {
+  margin-right: 8px;
+}
+
+.ai-composer-notice {
+  margin: 12px 0 0;
+}
+
+.ai-composer-tips {
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #757575;
+}
+
+.ai-composer-tips li {
+  margin-bottom: 6px;
+}
+
+.ai-composer-tips li:last-child {
+  margin-bottom: 0;
+}
