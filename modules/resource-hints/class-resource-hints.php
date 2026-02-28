@@ -101,9 +101,9 @@ class WPI_Resource_Hints {
     $opts    = self::get_options();
     $origins = $opts['origins'];
     $option  = esc_attr(self::OPTION);
+    $next_i  = empty($origins) ? 1 : count($origins);
 
     ?>
-    <h2><?php esc_html_e('Resource Hints', 'wp-intelligence'); ?></h2>
     <p class="description">
       <?php esc_html_e('Define origins for preconnect and dns-prefetch. Themes can also inject origins via the wpi_resource_hint_origins filter.', 'wp-intelligence'); ?>
     </p>
@@ -111,7 +111,7 @@ class WPI_Resource_Hints {
       <tr>
         <th scope="row"><?php esc_html_e('Origins', 'wp-intelligence'); ?></th>
         <td>
-          <div id="wpi-origins-list">
+          <div id="wpi-origins-list" data-option="<?php echo esc_attr($option); ?>" data-next-index="<?php echo esc_attr((string) $next_i); ?>">
             <?php if (empty($origins)) : ?>
               <?php self::render_origin_row($option, 0, '', false); ?>
             <?php else : ?>
@@ -120,32 +120,9 @@ class WPI_Resource_Hints {
               <?php endforeach; ?>
             <?php endif; ?>
           </div>
-          <button type="button" class="button button-small" id="wpi-add-origin" style="margin-top:8px;">
+          <button type="button" class="button button-small" id="wpi-add-origin" data-option="<?php echo esc_attr($option); ?>">
             + <?php esc_html_e('Add origin', 'wp-intelligence'); ?>
           </button>
-
-          <script>
-          (function(){
-            var c=0,list=document.getElementById('wpi-origins-list');
-            c=list.querySelectorAll('.wpi-origin-row').length;
-            document.getElementById('wpi-add-origin').addEventListener('click',function(){
-              var row=document.createElement('div');
-              row.className='wpi-origin-row';
-              row.style.marginBottom='6px';
-              var opt='<?php echo $option; ?>';
-              row.innerHTML='<input type="url" name="'+opt+'[origins]['+c+'][url]" value="" class="regular-text" placeholder="https://cdn.example.com"> '
-                +'<label><input type="checkbox" name="'+opt+'[origins]['+c+'][crossorigin]" value="1"> crossorigin</label> '
-                +'<button type="button" class="button button-link-delete wpi-rm-origin">&times;</button>';
-              list.appendChild(row);
-              c++;
-            });
-            list.addEventListener('click',function(e){
-              if(e.target.classList.contains('wpi-rm-origin')){
-                e.target.closest('.wpi-origin-row').remove();
-              }
-            });
-          })();
-          </script>
         </td>
       </tr>
     </tbody></table>
@@ -154,7 +131,7 @@ class WPI_Resource_Hints {
 
   private static function render_origin_row(string $option, int $i, string $url, bool $cross): void {
     ?>
-    <div class="wpi-origin-row" style="margin-bottom:6px;">
+    <div class="wpi-origin-row">
       <input type="url" name="<?php echo $option; ?>[origins][<?php echo $i; ?>][url]" value="<?php echo esc_attr($url); ?>" class="regular-text" placeholder="https://cdn.example.com">
       <label>
         <input type="checkbox" name="<?php echo $option; ?>[origins][<?php echo $i; ?>][crossorigin]" value="1" <?php checked($cross); ?>>

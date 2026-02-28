@@ -17,6 +17,7 @@ require_once $dir . '/class-ai-composer.php';
 WPI_Module_Manager::register('ai_composer', [
   'title'       => __('AI Composer', 'wp-intelligence'),
   'description' => __('AI-powered page composition using your site\'s registered blocks and patterns.', 'wp-intelligence'),
+  'category'    => __('AI & Content', 'wp-intelligence'),
   'icon'        => 'admin-customizer',
   'boot'        => ['AI_Composer', 'init'],
   'default'     => true,

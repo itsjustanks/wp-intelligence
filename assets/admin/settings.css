@@ -1,0 +1,256 @@
+.wpi-settings-page {
+  max-width: 1220px;
+}
+
+.wpi-settings-page .wpi-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 20px 0 14px;
+}
+
+.wpi-settings-page .wpi-page-header h1 {
+  margin: 0 0 4px;
+}
+
+.wpi-settings-page .wpi-page-header .description {
+  margin: 0;
+  font-size: 14px;
+}
+
+.wpi-settings-page .wpi-version-pill {
+  background: #f0f6fc;
+  border: 1px solid #c3d7ea;
+  color: #2c3338;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.wpi-settings-page .wpi-nav-tabs {
+  margin-bottom: 18px;
+}
+
+.wpi-settings-page .wpi-settings-form {
+  margin-top: 14px;
+}
+
+.wpi-settings-page .wpi-tab-content {
+  display: grid;
+  gap: 16px;
+}
+
+.wpi-settings-page .wpi-card {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 10px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02);
+  padding: 18px 20px;
+}
+
+.wpi-settings-page .wpi-card > h2 {
+  margin: 0 0 6px;
+  font-size: 19px;
+}
+
+.wpi-settings-page .wpi-card .description {
+  margin-top: 0;
+}
+
+.wpi-settings-page .wpi-card .form-table {
+  margin: 10px 0 0;
+}
+
+.wpi-settings-page .wpi-card .form-table th {
+  width: 240px;
+  padding-left: 0;
+}
+
+.wpi-settings-page .wpi-card .form-table td {
+  padding-right: 0;
+}
+
+.wpi-settings-page .wpi-inline-notice {
+  margin: 0 0 16px;
+}
+
+.wpi-settings-page .wpi-checklist {
+  margin: 16px 0 0;
+  padding-left: 20px;
+}
+
+.wpi-settings-page .wpi-checklist > li {
+  margin-bottom: 16px;
+}
+
+.wpi-settings-page .wpi-checklist > li p {
+  margin: 6px 0 10px;
+}
+
+.wpi-settings-page .wpi-module-category + .wpi-module-category {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.wpi-settings-page .wpi-module-category > h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #50575e;
+}
+
+.wpi-settings-page .wpi-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.wpi-settings-page .wpi-module-card {
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fcfcfc;
+}
+
+.wpi-settings-page .wpi-module-card h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wpi-settings-page .wpi-module-card p {
+  margin: 10px 0;
+}
+
+.wpi-settings-page .wpi-module-card.is-disabled {
+  opacity: 0.75;
+}
+
+.wpi-settings-page .wpi-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.wpi-settings-page .wpi-status-error {
+  color: #b32d2e;
+  margin-bottom: 8px;
+}
+
+.wpi-settings-page .wpi-block-mode {
+  margin: 12px 0;
+}
+
+.wpi-settings-page .wpi-forced-note {
+  margin: 8px 0 0;
+}
+
+.wpi-settings-page .wpi-block-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.wpi-settings-page .wpi-block-count {
+  margin-left: auto;
+  color: #646970;
+  font-size: 12px;
+}
+
+.wpi-settings-page .wpi-block-list {
+  border: 1px solid #dcdcde;
+  background: #f8f9fa;
+  border-radius: 8px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.wpi-settings-page .wpi-block-list.is-disabled {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.wpi-settings-page .wpi-block-list details + details {
+  margin-top: 6px;
+}
+
+.wpi-settings-page .wpi-block-list summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.wpi-settings-page .wpi-block-list summary span {
+  font-weight: 400;
+  color: #646970;
+}
+
+.wpi-settings-page .wpi-block-prefix-group {
+  padding-left: 20px;
+  margin-top: 6px;
+}
+
+.wpi-settings-page .wpi-block-candidate {
+  display: block;
+  margin: 5px 0;
+}
+
+.wpi-settings-page .wpi-block-candidate span {
+  color: #3c434a;
+}
+
+.wpi-settings-page .wpi-block-candidate code {
+  font-size: 12px;
+}
+
+.wpi-settings-page .wpi-forced-block-label {
+  color: #7a4f01;
+}
+
+.wpi-settings-page .wpi-origin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.wpi-settings-page .wpi-origin-row .regular-text {
+  flex: 1 1 auto;
+}
+
+.wpi-settings-page #wpi-add-origin {
+  margin-top: 8px;
+}
+
+.wpi-settings-page .wpi-checkbox-row {
+  display: block;
+  margin: 3px 0;
+}
+
+.wpi-settings-page .wpi-checkbox-row code {
+  font-size: 11px;
+}
+
+@media (max-width: 782px) {
+  .wpi-settings-page .wpi-page-header {
+    flex-direction: column;
+  }
+
+  .wpi-settings-page .wpi-card .form-table th {
+    width: auto;
+  }
+
+  .wpi-settings-page .wpi-block-count {
+    margin-left: 0;
+  }
+}

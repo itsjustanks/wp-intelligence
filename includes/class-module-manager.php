@@ -14,7 +14,7 @@ class WPI_Module_Manager {
 
   private const OPTION = 'wpi_modules';
 
-  /** @var array<string,array{title:string,description:string,boot:callable,default:bool,requires?:string}> */
+  /** @var array<string,array{title:string,description:string,boot:callable,default:bool,requires?:string,category?:string}> */
   private static array $modules = [];
 
   /** @var bool */
@@ -31,6 +31,7 @@ class WPI_Module_Manager {
    *   @type bool     $default     Whether the module is on by default.
    *   @type string   $requires    Optional. Plugin class/function gate (e.g. 'WooCommerce').
    *   @type string   $icon        Optional. Dashicon slug.
+   *   @type string   $category    Optional. UI grouping category label.
    * }
    */
   public static function register(string $id, array $config): void {
@@ -41,6 +42,7 @@ class WPI_Module_Manager {
       'default'     => true,
       'requires'    => '',
       'icon'        => 'admin-generic',
+      'category'    => 'General',
     ]);
     self::$modules[$id] = $config;
   }

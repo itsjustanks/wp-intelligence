@@ -58,6 +58,10 @@ add_action('after_setup_theme', function () {
 require_once __DIR__ . '/includes/class-module-manager.php';
 require_once __DIR__ . '/includes/class-settings.php';
 
+if (function_exists('register_activation_hook')) {
+  register_activation_hook(__FILE__, ['AI_Composer_Settings', 'handle_activation']);
+}
+
 // Auto-discover and register every module.
 foreach (glob(__DIR__ . '/modules/*/boot.php') as $boot_file) {
   require_once $boot_file;

@@ -18,6 +18,8 @@ It is designed to be:
   - `blockTree` (primary output for editor insertion), and
   - serialized block grammar (`blocks`) for compatibility.
 - Includes a settings page for:
+  - first-run welcome onboarding,
+  - categorized feature module management,
   - block allow-list mode,
   - model/API key fallback configuration,
   - theme strategy toggle,
@@ -56,9 +58,10 @@ It is designed to be:
 1. Place plugin folder at:
    - `wp-content/plugins/wp-intelligence`
 2. Activate **WP Intelligence** in WP Admin.
-3. Configure provider/settings:
+3. After activation, complete the one-time **Welcome** checklist.
+4. Configure provider/settings:
    - `Settings > WP Intelligence`
-4. Open the block editor and launch the **WP Intelligence** sidebar.
+5. Open the block editor and launch the **WP Intelligence** sidebar.
 
 ## Quick Start
 
@@ -124,10 +127,13 @@ Settings are stored in option:
 - `ai_composer_settings`
 
 Admin page includes:
+- Welcome tab with first-run setup checklist
+- Categorized Modules tab for grouped feature toggles
 - Provider fields (shown only when native WP AI client is unavailable)
 - Block Library selector (all vs selected mode)
 - Theme-aware strategy toggle
 - System prompt prepend/append
+- Syndication defaults (post types, rewrite system prompt, optional source taxonomy mapping)
 
 Composable core blocks are always forced enabled in selected mode to prevent dead-end compositions.
 
