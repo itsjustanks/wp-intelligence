@@ -67,39 +67,6 @@ class AI_Composer_REST_Controller {
       'callback'            => [self::class, 'handle_status'],
       'permission_callback' => [self::class, 'can_compose'],
     ]);
-
-    register_rest_route(self::NAMESPACE, '/syndicate', [
-      'methods'             => 'POST',
-      'callback'            => [self::class, 'handle_syndicate'],
-      'permission_callback' => [self::class, 'can_syndicate'],
-      'args'                => [
-        'url' => [
-          'required'          => true,
-          'type'              => 'string',
-          'sanitize_callback' => 'esc_url_raw',
-          'validate_callback' => function ($value) {
-            return AI_Composer_Syndication::validate_url((string) $value);
-          },
-        ],
-        'prompt' => [
-          'required'          => false,
-          'type'              => 'string',
-          'default'           => '',
-          'sanitize_callback' => 'sanitize_textarea_field',
-        ],
-        'postId' => [
-          'required'          => false,
-          'type'              => 'integer',
-          'default'           => 0,
-          'sanitize_callback' => 'absint',
-        ],
-        'postType' => [
-          'required'          => true,
-          'type'              => 'string',
-          'sanitize_callback' => 'sanitize_key',
-        ],
-      ],
-    ]);
   }
 
   public static function handle_compose(WP_REST_Request $request): WP_REST_Response|WP_Error {
@@ -147,40 +114,6 @@ class AI_Composer_REST_Controller {
       'abilities_api' => function_exists('wp_register_ability'),
       'version'       => AI_COMPOSER_VERSION,
     ], 200);
-  }
-
-  public static function handle_syndicate(WP_REST_Request $request): WP_REST_Response|WP_Error {
-    $url       = esc_url_raw((string) $request->get_param('url'));
-    $prompt    = sanitize_textarea_field((string) $request->get_param('prompt'));
-    $post_id   = absint($request->get_param('postId'));
-    $post_type = sanitize_key((string) $request->get_param('postType'));
-
-    $composer = AI_Composer::get_instance();
-    $result   = $composer->syndication()->syndicate($url, $prompt, $post_id);
-
-    if (is_wp_error($result)) {
-      return $result;
-    }
-
-    $result['postType'] = $post_type;
-    return new WP_REST_Response($result, 200);
-  }
-
-  public static function can_syndicate(WP_REST_Request $request): bool|WP_Error {
-    $post_type = sanitize_key((string) $request->get_param('postType'));
-
-    $composer = AI_Composer::get_instance();
-    $enabled  = $composer->syndication()->get_enabled_post_types();
-    if (! empty($enabled) && ! in_array($post_type, $enabled, true)) {
-      return new WP_Error('ai_composer_syndication_disabled', __('Syndication is not enabled for this post type.', 'wp-intelligence'), ['status' => 403]);
-    }
-
-    $post_id = absint($request->get_param('postId'));
-    if ($post_id > 0) {
-      return current_user_can('edit_post', $post_id);
-    }
-
-    return current_user_can(apply_filters('ai_composer_capability', 'edit_posts'));
   }
 
   public static function can_compose(WP_REST_Request $request): bool {

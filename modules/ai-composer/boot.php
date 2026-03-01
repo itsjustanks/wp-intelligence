@@ -3,6 +3,14 @@ if (! defined('ABSPATH')) {
   exit;
 }
 
+if (! defined('AI_COMPOSER_DIR')) {
+  define('AI_COMPOSER_DIR', __DIR__);
+}
+if (! defined('AI_COMPOSER_URL')) {
+  $ai_composer_url = defined('WPI_URL') ? WPI_URL . 'modules/ai-composer/' : '';
+  define('AI_COMPOSER_URL', $ai_composer_url);
+}
+
 $dir = __DIR__;
 
 require_once $dir . '/class-block-catalog.php';

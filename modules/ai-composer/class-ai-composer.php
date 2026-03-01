@@ -12,7 +12,6 @@ class AI_Composer {
   private AI_Composer_Prompt_Engine   $prompt_engine;
   private AI_Composer_Provider        $provider;
   private AI_Composer_Manifest_Compiler $compiler;
-  private AI_Composer_Syndication     $syndication;
 
   private function __construct() {
     $this->blocks        = new AI_Composer_Block_Catalog();
@@ -20,7 +19,6 @@ class AI_Composer {
     $this->prompt_engine = new AI_Composer_Prompt_Engine($this->blocks, $this->patterns);
     $this->provider      = new AI_Composer_Provider();
     $this->compiler      = new AI_Composer_Manifest_Compiler($this->blocks, $this->patterns);
-    $this->syndication   = new AI_Composer_Syndication($this->provider);
   }
 
   public static function get_instance(): self {
@@ -38,7 +36,6 @@ class AI_Composer {
     AI_Composer_Settings::init();
 
     add_action('enqueue_block_editor_assets', [$instance, 'enqueue_editor_assets']);
-    add_action('enqueue_block_editor_assets', [$instance, 'enqueue_syndication_assets']);
 
     do_action('ai_composer_init', $instance);
   }
@@ -160,44 +157,5 @@ class AI_Composer {
 
   public function provider(): AI_Composer_Provider {
     return $this->provider;
-  }
-
-  public function syndication(): AI_Composer_Syndication {
-    return $this->syndication;
-  }
-
-  /**
-   * Enqueue the syndication panel script on applicable post types.
-   */
-  public function enqueue_syndication_assets(): void {
-    if (! current_user_can('edit_posts')) {
-      return;
-    }
-
-    $screen = get_current_screen();
-    if (! $screen || $screen->base !== 'post') {
-      return;
-    }
-
-    $enabled = $this->syndication->get_enabled_post_types();
-    if (! empty($enabled) && ! in_array($screen->post_type, $enabled, true)) {
-      return;
-    }
-
-    $js_path = AI_COMPOSER_DIR . '/editor/syndication.js';
-
-    wp_enqueue_script(
-      'ai-composer-syndication',
-      AI_COMPOSER_URL . 'editor/syndication.js',
-      ['wp-plugins', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-blocks', 'wp-api-fetch', 'wp-i18n'],
-      file_exists($js_path) ? (string) filemtime($js_path) : AI_COMPOSER_VERSION,
-      true
-    );
-
-    wp_localize_script('ai-composer-syndication', 'aiComposerSyndicationConfig', [
-      'restNamespace'  => 'ai-composer/v1',
-      'nonce'          => wp_create_nonce('wp_rest'),
-      'enabledPostTypes' => $enabled,
-    ]);
   }
 }
