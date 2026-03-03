@@ -107,10 +107,18 @@ Base namespace: `ai-composer/v1`
 - `GET /catalog`
   - Returns discovered composable blocks and patterns
 - `GET /status`
-  - Returns provider availability, provider info, abilities API availability, plugin version
+  - Returns provider availability, provider info, provider readiness details, abilities API availability, plugin version
 
 Permission for REST compose/catalog/status uses:
 - `current_user_can( apply_filters('ai_composer_capability', 'edit_posts') )`
+
+Block Visibility API read routes are authenticated by default:
+- `block-visibility/v1/settings`
+- `block-visibility/v1/variables`
+
+You can opt back into public reads with:
+- `wpi_visibility_rest_public_settings_read`
+- `wpi_visibility_rest_public_variables_read`
 
 ## Abilities API
 
@@ -136,6 +144,10 @@ Admin page includes:
 - Syndication defaults (post types, rewrite system prompt, optional source taxonomy mapping)
 
 Composable core blocks are always forced enabled in selected mode to prevent dead-end compositions.
+
+Performance module note:
+- runtime-defined constants are best-effort fallbacks and only apply when constants are not already defined.
+- for deterministic behavior across all bootstrap phases, define performance constants in `wp-config.php`.
 
 ## Extending WP Intelligence
 
@@ -233,14 +245,23 @@ WP Intelligence inserts via normalized `blockTree` and `createBlock` to reduce t
 
 Check block settings mode and allowed list in plugin settings, plus any custom allow-list filters.
 
+### "URL blocked by safety checks" (Syndication)
+
+Syndication only allows public `http(s)` URLs by default and blocks local/private hosts.
+
+To override this in trusted environments, use:
+- `ai_composer_syndication_allow_private_hosts`
+
 ## Development
 
 ```bash
 cd wp-content/plugins/wp-intelligence
 php -l wp-intelligence.php
-php -l includes/class-ai-composer.php
-php -l includes/class-provider.php
-php -l includes/class-manifest-compiler.php
+php -l src/core/class-settings.php
+php -l src/features/ai-composer/class-ai-composer.php
+php -l src/features/ai-composer/class-provider.php
+php -l src/features/ai-composer/class-manifest-compiler.php
+php tests/php/run.php
 ```
 
 Then run editor smoke tests:
@@ -249,6 +270,22 @@ Then run editor smoke tests:
 - compose using a known custom pattern
 - compose with fallback provider path (if no native AI client)
 - validate no Gutenberg block recovery warnings
+
+## Uninstall and Data Retention
+
+By default, uninstall preserves plugin data/options.
+
+To remove plugin data on uninstall, set:
+
+```php
+define('WPI_REMOVE_DATA_ON_UNINSTALL', true);
+```
+
+Or filter it:
+
+```php
+add_filter('wpi_remove_data_on_uninstall', '__return_true');
+```
 
 ## WordPress.org Readiness
 
