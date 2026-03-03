@@ -95,7 +95,8 @@ class AI_Composer {
     if (! $this->provider->is_available()) {
       return new WP_Error(
         'ai_composer_no_provider',
-        __('No AI provider is configured. Add an API key in Settings or WordPress AI Credentials.', 'wp-intelligence')
+        __('No AI provider is configured. Add an API key in Settings or WordPress AI Credentials.', 'wp-intelligence'),
+        ['status' => 503]
       );
     }
 
@@ -114,7 +115,8 @@ class AI_Composer {
     if (! is_array($manifest) || empty($manifest['blocks'])) {
       return new WP_Error(
         'ai_composer_invalid_manifest',
-        __('The AI returned an invalid composition manifest.', 'wp-intelligence')
+        __('The AI returned an invalid composition manifest.', 'wp-intelligence'),
+        ['status' => 502]
       );
     }
 

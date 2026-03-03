@@ -35,7 +35,11 @@ class AI_Composer_Manifest_Compiler {
    */
   public function validate(array $manifest): true|WP_Error {
     if (empty($manifest['blocks']) || ! is_array($manifest['blocks'])) {
-      return new WP_Error('ai_composer_empty_manifest', __('Manifest contains no blocks.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_empty_manifest',
+        __('Manifest contains no blocks.', 'wp-intelligence'),
+        ['status' => 400]
+      );
     }
 
     $definitions = $this->coalesce_section_pattern_siblings($manifest['blocks']);
@@ -45,7 +49,7 @@ class AI_Composer_Manifest_Compiler {
       return new WP_Error(
         'ai_composer_validation_failed',
         implode(' ', $errors),
-        ['details' => $errors]
+        ['details' => $errors, 'status' => 400]
       );
     }
 
@@ -233,7 +237,11 @@ class AI_Composer_Manifest_Compiler {
     $type = $definition['blockType'] ?? '';
 
     if (! is_string($type) || $type === '') {
-      return new WP_Error('ai_composer_invalid_block_type', __('Manifest blockType is missing.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_invalid_block_type',
+        __('Manifest blockType is missing.', 'wp-intelligence'),
+        ['status' => 400]
+      );
     }
 
     if ($type === 'pattern') {
@@ -294,19 +302,28 @@ class AI_Composer_Manifest_Compiler {
    */
   private function pattern_to_nodes(string $slug): array|WP_Error {
     if ($slug === '') {
-      return new WP_Error('ai_composer_pattern_missing', __('Pattern slug is missing.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_pattern_missing',
+        __('Pattern slug is missing.', 'wp-intelligence'),
+        ['status' => 400]
+      );
     }
 
     $pattern = $this->patterns->get_pattern($slug);
     if ($pattern === null) {
       return new WP_Error(
         'ai_composer_pattern_not_found',
-        sprintf(__('Pattern "%s" not found.', 'wp-intelligence'), $slug)
+        sprintf(__('Pattern "%s" not found.', 'wp-intelligence'), $slug),
+        ['status' => 400]
       );
     }
 
     if (! function_exists('parse_blocks')) {
-      return new WP_Error('ai_composer_parse_blocks_unavailable', __('parse_blocks() is unavailable.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_parse_blocks_unavailable',
+        __('parse_blocks() is unavailable.', 'wp-intelligence'),
+        ['status' => 500]
+      );
     }
 
     $parsed = parse_blocks($pattern['content'] ?? '');

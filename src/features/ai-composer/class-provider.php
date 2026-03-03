@@ -116,7 +116,8 @@ class AI_Composer_Provider {
     if ($api_key === '') {
       return new WP_Error(
         'ai_composer_no_api_key',
-        __('No OpenAI API key configured. Go to Settings → WP Intelligence to add one.', 'wp-intelligence')
+        __('No OpenAI API key configured. Go to Settings → WP Intelligence to add one.', 'wp-intelligence'),
+        ['status' => 400]
       );
     }
 
@@ -149,7 +150,7 @@ class AI_Composer_Provider {
     ]);
 
     if (is_wp_error($response)) {
-      return new WP_Error('ai_composer_request_failed', $response->get_error_message());
+      return new WP_Error('ai_composer_request_failed', $response->get_error_message(), ['status' => 502]);
     }
 
     $status = wp_remote_retrieve_response_code($response);
@@ -163,7 +164,11 @@ class AI_Composer_Provider {
 
     $content = $data['choices'][0]['message']['content'] ?? null;
     if (! is_string($content)) {
-      return new WP_Error('ai_composer_empty_response', __('The AI returned an empty response.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_empty_response',
+        __('The AI returned an empty response.', 'wp-intelligence'),
+        ['status' => 502]
+      );
     }
 
     return $content;
