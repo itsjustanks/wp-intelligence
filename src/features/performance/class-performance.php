@@ -36,7 +36,8 @@ class WPI_Performance {
     $opts = self::get_options();
 
     if ($opts['constants_enabled']) {
-      add_action('init', [self::class, 'define_constants'], 1);
+      // Module boots on `init`; define constants immediately as best-effort fallback.
+      self::define_constants();
     }
 
     if ($opts['compression_enabled']) {
@@ -88,7 +89,7 @@ class WPI_Performance {
     $features = [
       'constants_enabled' => [
         'label' => __('Performance constants', 'wp-intelligence'),
-        'desc'  => __('Sets EMPTY_TRASH_DAYS, WP_POST_REVISIONS, CONCATENATE_SCRIPTS, COMPRESS_SCRIPTS, COMPRESS_CSS, ENFORCE_GZIP. Values can be overridden with the <code>wpi_performance_constants</code> filter.', 'wp-intelligence'),
+        'desc'  => __('Best-effort runtime fallback for EMPTY_TRASH_DAYS, WP_POST_REVISIONS, CONCATENATE_SCRIPTS, COMPRESS_SCRIPTS, COMPRESS_CSS, and ENFORCE_GZIP when they are not already defined. For deterministic behavior across all request phases, define performance constants in <code>wp-config.php</code>. Values can be customized with <code>wpi_performance_constants</code>.', 'wp-intelligence'),
       ],
       'compression_enabled' => [
         'label' => __('HTML compression', 'wp-intelligence'),
