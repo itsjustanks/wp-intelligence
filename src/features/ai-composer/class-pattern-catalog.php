@@ -65,11 +65,33 @@ class AI_Composer_Pattern_Catalog {
    * Compile the catalog into a compact text format for the system prompt.
    * Pattern content is NOT included (too large); only metadata.
    */
-  public function to_prompt_text(): string {
+  public function to_prompt_text(array $options = []): string {
+    $defaults = [
+      'max_patterns'          => 40,
+      'include_descriptions'  => true,
+      'description_max_chars' => 120,
+      'include_categories'    => true,
+    ];
+
+    $options = wp_parse_args(
+      $options,
+      apply_filters('ai_composer_prompt_pattern_catalog_config', $defaults, $options)
+    );
+
     $catalog = $this->discover();
     if (empty($catalog)) {
       return '';
     }
+
+    $patterns = array_values($catalog);
+    usort($patterns, static function (array $a, array $b): int {
+      $a_name = (string) ($a['name'] ?? '');
+      $b_name = (string) ($b['name'] ?? '');
+      return strcmp($a_name, $b_name);
+    });
+
+    $max_patterns = max(1, absint((string) $options['max_patterns']));
+    $patterns = array_slice($patterns, 0, $max_patterns);
 
     $lines = ["## Available Patterns
 "];
@@ -77,21 +99,46 @@ class AI_Composer_Pattern_Catalog {
     $lines[] = "Patterns are pre-built layouts that will be resolved to block grammar automatically.
 ";
 
-    foreach ($catalog as $pattern) {
+    foreach ($patterns as $pattern) {
       $line = '- **' . $pattern['name'] . '**';
       if ($pattern['title'] && $pattern['title'] !== $pattern['name']) {
         $line .= ' — ' . $pattern['title'];
       }
-      if ($pattern['description']) {
-        $line .= ': ' . $pattern['description'];
+      if (! empty($options['include_descriptions']) && ! empty($pattern['description'])) {
+        $line .= ': ' . $this->truncate_text((string) $pattern['description'], (int) $options['description_max_chars']);
       }
-      if (! empty($pattern['categories'])) {
+      if (! empty($options['include_categories']) && ! empty($pattern['categories'])) {
         $line .= ' [' . implode(', ', $pattern['categories']) . ']';
       }
       $lines[] = $line;
     }
 
+    if (count($catalog) > $max_patterns) {
+      $lines[] = '';
+      $lines[] = '- … plus ' . (count($catalog) - $max_patterns) . ' additional patterns omitted for brevity.';
+    }
+
     return implode("\n", $lines);
+  }
+
+  private function truncate_text(string $text, int $max_chars): string {
+    $text = trim($text);
+    if ($max_chars <= 0 || $text === '') {
+      return $text;
+    }
+
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+      if (mb_strlen($text) <= $max_chars) {
+        return $text;
+      }
+      return rtrim(mb_substr($text, 0, $max_chars - 1)) . '…';
+    }
+
+    if (strlen($text) <= $max_chars) {
+      return $text;
+    }
+
+    return rtrim(substr($text, 0, $max_chars - 1)) . '…';
   }
 
   /**

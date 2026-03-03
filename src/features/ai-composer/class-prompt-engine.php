@@ -15,6 +15,7 @@ class AI_Composer_Prompt_Engine {
 
   public function build_system_prompt(array $options = []): string {
     $sections = [];
+    $catalog_options = $this->get_prompt_catalog_options($options);
 
     $prepend = trim(AI_Composer_Settings::get_system_prompt_prepend());
     if ($prepend !== '') {
@@ -23,8 +24,8 @@ class AI_Composer_Prompt_Engine {
     }
 
     $sections[] = $this->get_role_section();
-    $sections[] = $this->blocks->to_prompt_text();
-    $sections[] = $this->patterns->to_prompt_text();
+    $sections[] = $this->blocks->to_prompt_text($catalog_options['blocks']);
+    $sections[] = $this->patterns->to_prompt_text($catalog_options['patterns']);
 
     $theme_strategy = $this->get_theme_strategy_section();
     if ($theme_strategy !== '') {
@@ -59,6 +60,51 @@ class AI_Composer_Prompt_Engine {
 ", array_filter($sections));
 
     return apply_filters('ai_composer_system_prompt', $prompt, $options);
+  }
+
+  /**
+   * Determine prompt catalog compression settings by compose mode.
+   *
+   * @return array{
+   *   blocks: array<string,mixed>,
+   *   patterns: array<string,mixed>
+   * }
+   */
+  private function get_prompt_catalog_options(array $options): array {
+    $compose_mode = sanitize_key((string) ($options['compose_mode'] ?? 'new_content'));
+
+    $defaults = [
+      'blocks' => [
+        'max_blocks'               => 120,
+        'max_attributes_per_block' => 4,
+        'include_descriptions'     => true,
+        'description_max_chars'    => 140,
+        'include_attributes'       => true,
+        'prioritize_core_blocks'   => true,
+      ],
+      'patterns' => [
+        'max_patterns'          => 40,
+        'include_descriptions'  => true,
+        'description_max_chars' => 120,
+        'include_categories'    => true,
+      ],
+    ];
+
+    if ($compose_mode === 'selected_block') {
+      $defaults['blocks']['max_blocks'] = 80;
+      $defaults['patterns']['max_patterns'] = 20;
+      $defaults['patterns']['include_categories'] = false;
+    } elseif ($compose_mode === 'page') {
+      $defaults['blocks']['max_blocks'] = 100;
+      $defaults['patterns']['max_patterns'] = 30;
+    }
+
+    $filtered = apply_filters('ai_composer_prompt_catalog_options', $defaults, $options);
+    if (! is_array($filtered)) {
+      return $defaults;
+    }
+
+    return array_replace_recursive($defaults, $filtered);
   }
 
   /**
