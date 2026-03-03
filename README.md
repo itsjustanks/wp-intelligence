@@ -271,6 +271,10 @@ Then run editor smoke tests:
 - compose with fallback provider path (if no native AI client)
 - validate no Gutenberg block recovery warnings
 
+Additional verification docs:
+- `TESTING.md` — verification matrix and release checklist
+- `BASELINE.md` — behavior baseline snapshot for regression comparison
+
 ## Uninstall and Data Retention
 
 By default, uninstall preserves plugin data/options.
