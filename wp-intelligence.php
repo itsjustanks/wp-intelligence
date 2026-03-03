@@ -49,13 +49,17 @@ if (! defined('AI_COMPOSER_VERSION')) {
 }
 
 // Core includes (always loaded).
-require_once WPI_DIR . '/includes/class-module-manager.php';
-require_once WPI_DIR . '/includes/class-settings.php';
+require_once WPI_DIR . '/src/core/class-module-manager.php';
+require_once WPI_DIR . '/src/core/class-settings.php';
 
-// Discover and register all modules.
-foreach (glob(WPI_DIR . '/modules/*/boot.php') as $boot_file) {
+// Discover and register all features.
+foreach (glob(WPI_DIR . '/src/features/*/boot.php') as $boot_file) {
   require_once $boot_file;
 }
+
+// Settings page must be available regardless of which modules are active.
+AI_Composer_Settings::init();
+register_activation_hook(__FILE__, ['AI_Composer_Settings', 'handle_activation']);
 
 // Boot active modules after all post types / taxonomies are registered.
 add_action('init', ['WPI_Module_Manager', 'boot'], 20);

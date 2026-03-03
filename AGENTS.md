@@ -48,31 +48,40 @@ When making changes, optimize for:
 ## Architecture Map
 
 - `wp-intelligence.php`
-  - bootstrap, constants, includes, plugin metadata.
-- `includes/class-ai-composer.php`
-  - orchestrator; initializes routes/settings/abilities and composition flow.
-- `includes/class-provider.php`
-  - provider abstraction:
-    - native WP AI client path,
-    - OpenAI fallback path.
-- `includes/class-prompt-engine.php`
-  - system prompt assembly + strict output JSON schema.
-- `includes/class-manifest-compiler.php`
-  - manifest validation, pattern expansion checks, block tree generation, grammar serialization.
-- `includes/class-block-catalog.php`
-  - block discovery and composable filtering.
-- `includes/class-pattern-catalog.php`
-  - registered pattern discovery + built-in pattern loading.
-- `includes/class-rest-controller.php`
-  - REST endpoints (`compose`, `catalog`, `status`) and permission callback.
-- `includes/class-abilities-bridge.php`
-  - WordPress Abilities API registration when available.
-- `includes/class-settings.php`
-  - admin settings UI and sanitized persistence.
-- `editor/sidebar.js`, `editor/sidebar.css`
-  - Gutenberg sidebar UI and insertion behavior.
-- `patterns/*.php`
-  - built-in patterns, including slot-enabled section scaffolds.
+  - bootstrap, constants, loads core and discovers features.
+- `src/core/class-module-manager.php`
+  - feature module registration, activation flags, boot lifecycle.
+- `src/core/class-settings.php`
+  - admin settings page, tabs, sanitization, module UI.
+- `src/assets/admin/`
+  - shared admin CSS/JS for the settings page.
+- `src/features/ai-composer/`
+  - `class-ai-composer.php` — orchestrator; routes/settings/abilities and composition flow.
+  - `class-provider.php` — native WP AI client + OpenAI fallback.
+  - `class-prompt-engine.php` — system prompt assembly + strict output JSON schema.
+  - `class-manifest-compiler.php` — manifest validation, block tree generation, grammar serialization.
+  - `class-block-catalog.php` — block discovery and composable filtering.
+  - `class-pattern-catalog.php` — registered pattern discovery + built-in pattern loading.
+  - `class-rest-controller.php` — REST endpoints (`compose`, `catalog`, `status`).
+  - `class-abilities-bridge.php` — WordPress Abilities API registration.
+  - `editor/` — Gutenberg sidebar UI and insertion behavior.
+  - `patterns/` — built-in patterns, including slot-enabled section scaffolds.
+- `src/features/block-visibility/`
+  - conditional visibility controls for all WordPress blocks.
+  - `features/` — core visibility tests (hide-block, user-role, date-time, screen-size, location, etc.).
+  - `integrations/` — ACF, WooCommerce, EDD, WP Fusion visibility rules.
+  - `api/` — REST API (block-visibility/v1) settings and variables endpoints.
+  - `admin/` — editor asset enqueue and React settings page.
+  - `frontend/` — render_block filter and visibility evaluation.
+  - `assets/` — compiled JS/CSS bundles for editor and settings UI.
+- `src/features/syndication/` — AI-powered content syndication and rewriting.
+- `src/features/admin-experience/` — admin bar, login, footer, menu, editor enhancements.
+- `src/features/admin-columns/` — post list columns and post type switcher.
+- `src/features/code-injection/` — sitewide header/footer code injection.
+- `src/features/security/` — security hardening options.
+- `src/features/performance/` — performance constants and compression.
+- `src/features/resource-hints/` — preconnect and dns-prefetch hints.
+- `src/features/woocommerce/` — WooCommerce conditional asset loading.
 
 ## Provider and Version Compatibility Rules
 
