@@ -86,6 +86,8 @@ class AI_Composer_Syndication {
         'url'     => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'esc_url_raw'],
         'prompt'  => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_text_field'],
         'post_id' => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
+        // Backward-compatible alias for older editor payloads.
+        'postId'  => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
       ],
     ]);
   }
@@ -95,10 +97,15 @@ class AI_Composer_Syndication {
    * @return WP_REST_Response|WP_Error
    */
   public function handle_syndicate_request(WP_REST_Request $request): WP_REST_Response|WP_Error {
+    $post_id = absint($request->get_param('post_id'));
+    if ($post_id <= 0) {
+      $post_id = absint($request->get_param('postId'));
+    }
+
     $result = $this->syndicate(
       $request->get_param('url'),
       $request->get_param('prompt'),
-      $request->get_param('post_id')
+      $post_id
     );
 
     if (is_wp_error($result)) {

@@ -975,10 +975,13 @@ class AI_Composer_Settings {
             placeholder="fc-...">
           <p class="description">
             <?php
-            printf(
-              /* translators: %s = link to firecrawl.dev */
-              esc_html__('Get your key at %s. Required only when Firecrawl strategy is selected.', 'wp-intelligence'),
-              '<a href="https://firecrawl.dev" target="_blank" rel="noopener">firecrawl.dev</a>'
+            echo wp_kses(
+              sprintf(
+                /* translators: %s = link to firecrawl.dev */
+                __('Get your key at %s. Required only when Firecrawl strategy is selected.', 'wp-intelligence'),
+                '<a href="https://firecrawl.dev" target="_blank" rel="noopener noreferrer">firecrawl.dev</a>'
+              ),
+              ['a' => ['href' => [], 'target' => [], 'rel' => []]]
             );
             ?>
           </p>

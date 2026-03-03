@@ -17,7 +17,7 @@ class AI_Composer_Provider {
    * @return string|WP_Error Raw JSON string from the AI.
    */
   public function generate(string $system_prompt, string $user_prompt, array $json_schema): string|WP_Error {
-    if (function_exists('wp_ai_client_prompt')) {
+    if ($this->has_native_client()) {
       return $this->generate_via_wp_ai_client($system_prompt, $user_prompt, $json_schema);
     }
 
@@ -25,7 +25,7 @@ class AI_Composer_Provider {
   }
 
   public function is_available(): bool {
-    if (function_exists('wp_ai_client_prompt')) {
+    if ($this->has_native_client()) {
       return true;
     }
 
@@ -33,7 +33,7 @@ class AI_Composer_Provider {
   }
 
   public function get_provider_info(): array {
-    if (function_exists('wp_ai_client_prompt')) {
+    if ($this->has_native_client()) {
       return [
         'provider' => 'wp-ai-client',
         'native'   => true,
@@ -46,6 +46,51 @@ class AI_Composer_Provider {
       'native'    => false,
       'model'     => $this->get_model(),
     ];
+  }
+
+  /**
+   * Return an editor-facing readiness summary for UX messaging.
+   *
+   * @return array{
+   *   can_compose:bool,
+   *   runtime:string,
+   *   native:bool,
+   *   configured:bool|null,
+   *   requires_configuration:bool,
+   *   message:string,
+   *   model:string
+   * }
+   */
+  public function get_readiness_status(): array {
+    if ($this->has_native_client()) {
+      return [
+        'can_compose'             => true,
+        'runtime'                 => 'wp-ai-client',
+        'native'                  => true,
+        'configured'              => null,
+        'requires_configuration'  => false,
+        'message'                 => __('WordPress native AI runtime detected. Credentials are managed in Settings -> AI Credentials.', 'wp-intelligence'),
+        'model'                   => '',
+      ];
+    }
+
+    $has_api_key = ($this->get_api_key() !== '');
+
+    return [
+      'can_compose'            => $has_api_key,
+      'runtime'                => $has_api_key ? 'openai-direct' : 'none',
+      'native'                 => false,
+      'configured'             => $has_api_key,
+      'requires_configuration' => ! $has_api_key,
+      'message'                => $has_api_key
+        ? __('Using OpenAI direct fallback from WP Intelligence settings.', 'wp-intelligence')
+        : __('No AI provider is configured. Add an OpenAI API key in WP Intelligence settings or configure the WordPress native AI runtime.', 'wp-intelligence'),
+      'model'                  => $has_api_key ? (string) $this->get_model() : '',
+    ];
+  }
+
+  private function has_native_client(): bool {
+    return function_exists('wp_ai_client_prompt');
   }
 
   private function generate_via_wp_ai_client(string $system_prompt, string $user_prompt, array $json_schema): string|WP_Error {

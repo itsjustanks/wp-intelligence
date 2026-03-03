@@ -65,10 +65,13 @@ class AI_Composer {
       file_exists($css_path) ? (string) filemtime($css_path) : WPI_VERSION
     );
 
+    $provider_status = $this->provider->get_readiness_status();
+
     wp_localize_script('ai-composer-sidebar', 'aiComposerConfig', [
       'restNamespace'  => 'ai-composer/v1',
       'nonce'          => wp_create_nonce('wp_rest'),
-      'providerReady'  => $this->provider->is_available(),
+      'providerReady'  => $provider_status['can_compose'],
+      'providerStatus' => $provider_status,
       'version'        => AI_COMPOSER_VERSION,
     ]);
   }

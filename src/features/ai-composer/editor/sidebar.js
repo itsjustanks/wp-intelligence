@@ -216,7 +216,14 @@
       });
     }, [prompt, insertMode, composeMode, editorState]);
 
-    var providerReady = config.providerReady;
+    var providerStatus = (config.providerStatus && typeof config.providerStatus === 'object')
+      ? config.providerStatus
+      : {};
+    var providerReady = (typeof providerStatus.can_compose === 'boolean')
+      ? providerStatus.can_compose
+      : !!config.providerReady;
+    var providerMessage = providerStatus.message || '';
+    var providerRuntime = providerStatus.runtime || '';
 
     return el(Fragment, null,
       el(PluginSidebarMoreMenuItem, {
@@ -235,11 +242,21 @@
             initialOpen: true,
           },
 
+            providerRuntime && el('p', {
+              className: 'ai-composer-provider-badge',
+            }, __('Runtime:', 'wp-intelligence') + ' ' + providerRuntime),
+
             !providerReady && el(Notice, {
               status: 'warning',
               isDismissible: false,
               className: 'ai-composer-notice',
-            }, __('No AI provider configured. Add an API key in Settings → WP Intelligence.', 'wp-intelligence')),
+            }, providerMessage || __('No AI provider configured. Add an API key in Settings → WP Intelligence.', 'wp-intelligence')),
+
+            providerReady && providerStatus.native && providerMessage && el(Notice, {
+              status: 'info',
+              isDismissible: false,
+              className: 'ai-composer-notice',
+            }, providerMessage),
 
             el(TextareaControl, {
               label: __('Describe the page you want to build', 'wp-intelligence'),
