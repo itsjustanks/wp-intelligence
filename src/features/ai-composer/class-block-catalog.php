@@ -135,11 +135,46 @@ class AI_Composer_Block_Catalog {
   /**
    * Compile the catalog into a compact text format suitable for a system prompt.
    */
-  public function to_prompt_text(): string {
-    $composable = $this->get_composable();
+  public function to_prompt_text(array $options = []): string {
+    $defaults = [
+      'max_blocks'               => 120,
+      'max_attributes_per_block' => 4,
+      'include_descriptions'     => true,
+      'description_max_chars'    => 140,
+      'include_attributes'       => true,
+      'prioritize_core_blocks'   => true,
+    ];
+
+    $options = wp_parse_args(
+      $options,
+      apply_filters('ai_composer_prompt_block_catalog_config', $defaults, $options)
+    );
+
+    $composable = array_values($this->get_composable());
     if (empty($composable)) {
       return '';
     }
+
+    if (! empty($options['prioritize_core_blocks'])) {
+      usort($composable, static function (array $a, array $b): int {
+        $a_name = (string) ($a['name'] ?? '');
+        $b_name = (string) ($b['name'] ?? '');
+        $a_core = str_starts_with($a_name, 'core/');
+        $b_core = str_starts_with($b_name, 'core/');
+
+        if ($a_core && ! $b_core) {
+          return -1;
+        }
+        if (! $a_core && $b_core) {
+          return 1;
+        }
+
+        return strcmp($a_name, $b_name);
+      });
+    }
+
+    $max_blocks = max(1, absint((string) $options['max_blocks']));
+    $composable = array_slice($composable, 0, $max_blocks);
 
     $lines = ["## Available Blocks\n"];
 
@@ -148,16 +183,19 @@ class AI_Composer_Block_Catalog {
       if ($block['title'] && $block['title'] !== $block['name']) {
         $line .= ' (' . $block['title'] . ')';
       }
-      if ($block['description']) {
-        $line .= ': ' . $block['description'];
+      if (! empty($options['include_descriptions']) && ! empty($block['description'])) {
+        $description = $this->truncate_text((string) $block['description'], (int) $options['description_max_chars']);
+        $line .= ': ' . $description;
       }
 
-      $attrs = $block['attributes'] ?? [];
-      if (! empty($attrs)) {
+      $attrs = (! empty($options['include_attributes']) && is_array($block['attributes'] ?? null))
+        ? $block['attributes']
+        : [];
+      if (! empty($attrs) && ! empty($options['max_attributes_per_block'])) {
         $attr_names = array_keys($attrs);
-        $display    = array_slice($attr_names, 0, 8);
+        $display    = array_slice($attr_names, 0, (int) $options['max_attributes_per_block']);
         $line      .= ' — attrs: ' . implode(', ', $display);
-        if (count($attr_names) > 8) {
+        if (count($attr_names) > (int) $options['max_attributes_per_block']) {
           $line .= ', …';
         }
       }
@@ -169,7 +207,33 @@ class AI_Composer_Block_Catalog {
       $lines[] = $line;
     }
 
+    $total_available = count($this->get_composable());
+    if ($total_available > $max_blocks) {
+      $lines[] = '';
+      $lines[] = '- … plus ' . ($total_available - $max_blocks) . ' additional available blocks omitted for brevity.';
+    }
+
     return implode("\n", $lines);
+  }
+
+  private function truncate_text(string $text, int $max_chars): string {
+    $text = trim($text);
+    if ($max_chars <= 0 || $text === '') {
+      return $text;
+    }
+
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+      if (mb_strlen($text) <= $max_chars) {
+        return $text;
+      }
+      return rtrim(mb_substr($text, 0, $max_chars - 1)) . '…';
+    }
+
+    if (strlen($text) <= $max_chars) {
+      return $text;
+    }
+
+    return rtrim(substr($text, 0, $max_chars - 1)) . '…';
   }
 
   private function extract_supports(WP_Block_Type $block_type): array {

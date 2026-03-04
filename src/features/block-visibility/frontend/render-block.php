@@ -58,6 +58,26 @@ function has_visibility_settings( $block ) {
 }
 
 /**
+ * Fetch and memoize visibility settings for current request.
+ *
+ * @since 3.7.2
+ *
+ * @return array
+ */
+function get_visibility_settings_cached() {
+	static $settings_cache = null;
+
+	if ( null !== $settings_cache ) {
+		return $settings_cache;
+	}
+
+	$settings = get_option( 'block_visibility_settings' );
+	$settings_cache = is_array( $settings ) ? $settings : array();
+
+	return $settings_cache;
+}
+
+/**
  * Check if the given block has visibility settings.
  *
  * @since 2.3.1
@@ -170,7 +190,7 @@ function render_with_visibility( $block_content, $block ) {
 		return $block_content;
 	}
 
-	$settings = get_option( 'block_visibility_settings' );
+	$settings = get_visibility_settings_cached();
 
 	if ( is_block_type_disabled( $settings, $block ) ) {
 		return $block_content;
@@ -212,7 +232,7 @@ function render_block_widget_with_visibility( $instance ) {
 	if ( ! empty( $instance['content'] ) && has_blocks( $instance['content'] ) ) {
 		$blocks = parse_blocks( $instance['content'] );
 
-		$settings   = get_option( 'block_visibility_settings' );
+		$settings   = get_visibility_settings_cached();
 		$attributes = isset( $blocks[0]['attrs']['blockVisibility'] )
 			? $blocks[0]['attrs']['blockVisibility']
 			: null;

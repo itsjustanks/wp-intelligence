@@ -72,8 +72,7 @@
         data: {
           url: url.trim(),
           prompt: prompt.trim(),
-          postId: postId || 0,
-          postType: postType || 'post',
+          post_id: postId || 0,
         },
       })
         .then(function (res) {

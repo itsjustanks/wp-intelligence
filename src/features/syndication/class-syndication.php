@@ -86,6 +86,8 @@ class AI_Composer_Syndication {
         'url'     => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'esc_url_raw'],
         'prompt'  => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_text_field'],
         'post_id' => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
+        // Backward-compatible alias for older editor payloads.
+        'postId'  => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
       ],
     ]);
   }
@@ -95,10 +97,15 @@ class AI_Composer_Syndication {
    * @return WP_REST_Response|WP_Error
    */
   public function handle_syndicate_request(WP_REST_Request $request): WP_REST_Response|WP_Error {
+    $post_id = absint($request->get_param('post_id'));
+    if ($post_id <= 0) {
+      $post_id = absint($request->get_param('postId'));
+    }
+
     $result = $this->syndicate(
       $request->get_param('url'),
       $request->get_param('prompt'),
-      $request->get_param('post_id')
+      $post_id
     );
 
     if (is_wp_error($result)) {
@@ -134,8 +141,9 @@ class AI_Composer_Syndication {
    */
   public function syndicate(string $url, string $prompt = '', int $post_id = 0): array|WP_Error {
     $url = esc_url_raw($url);
-    if (! self::validate_url($url)) {
-      return new WP_Error('ai_composer_syndication_invalid_url', __('Please provide a valid article URL.', 'wp-intelligence'), ['status' => 400]);
+    $url_validation = self::validate_source_url($url);
+    if (is_wp_error($url_validation)) {
+      return $url_validation;
     }
 
     do_action('ai_composer_before_syndicate', $url, $prompt, $post_id);
@@ -191,18 +199,115 @@ class AI_Composer_Syndication {
   // ------------------------------------------------------------------
 
   public static function validate_url(string $url): bool {
+    return ! is_wp_error(self::validate_source_url($url));
+  }
+
+  /**
+   * Validate and safety-check a remote article URL.
+   *
+   * @return true|WP_Error
+   */
+  private static function validate_source_url(string $url): true|WP_Error {
     $url = trim($url);
     if ($url === '') {
-      return false;
+      return new WP_Error(
+        'ai_composer_syndication_invalid_url',
+        __('Please provide a valid article URL.', 'wp-intelligence'),
+        ['status' => 400]
+      );
     }
 
     $url = esc_url_raw($url);
     if ($url === '') {
-      return false;
+      return new WP_Error(
+        'ai_composer_syndication_invalid_url',
+        __('Please provide a valid article URL.', 'wp-intelligence'),
+        ['status' => 400]
+      );
     }
 
     $scheme = wp_parse_url($url, PHP_URL_SCHEME);
-    return in_array($scheme, ['http', 'https'], true);
+    if (! in_array($scheme, ['http', 'https'], true)) {
+      return new WP_Error(
+        'ai_composer_syndication_invalid_url',
+        __('Please provide a valid article URL.', 'wp-intelligence'),
+        ['status' => 400]
+      );
+    }
+
+    $host = (string) wp_parse_url($url, PHP_URL_HOST);
+    if ($host === '') {
+      return new WP_Error(
+        'ai_composer_syndication_invalid_url',
+        __('Please provide a valid article URL.', 'wp-intelligence'),
+        ['status' => 400]
+      );
+    }
+
+    $allow_private_hosts = (bool) apply_filters('ai_composer_syndication_allow_private_hosts', false, $url, $host);
+    if (! $allow_private_hosts && self::is_private_or_local_host($host)) {
+      return new WP_Error(
+        'ai_composer_syndication_private_url',
+        __('For security reasons, local and private network URLs are not allowed for syndication.', 'wp-intelligence'),
+        ['status' => 400]
+      );
+    }
+
+    if (function_exists('wp_http_validate_url')) {
+      $validated = wp_http_validate_url($url);
+      if ($validated === false && ! $allow_private_hosts) {
+        return new WP_Error(
+          'ai_composer_syndication_private_url',
+          __('That URL is blocked by WordPress HTTP safety checks. Use a public article URL.', 'wp-intelligence'),
+          ['status' => 400]
+        );
+      }
+    }
+
+    return true;
+  }
+
+  private static function is_private_or_local_host(string $host): bool {
+    $normalized = strtolower(trim($host));
+    if ($normalized === '') {
+      return true;
+    }
+
+    if (in_array($normalized, ['localhost', '127.0.0.1', '::1'], true)) {
+      return true;
+    }
+
+    $local_tlds = ['.local', '.test', '.invalid', '.example', '.internal', '.localhost'];
+    foreach ($local_tlds as $suffix) {
+      if (str_ends_with($normalized, $suffix)) {
+        return true;
+      }
+    }
+
+    if (filter_var($normalized, FILTER_VALIDATE_IP) !== false) {
+      $public_ip = filter_var(
+        $normalized,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+      );
+
+      return ($public_ip === false);
+    }
+
+    $resolved = gethostbyname($normalized);
+    if ($resolved !== $normalized && filter_var($resolved, FILTER_VALIDATE_IP) !== false) {
+      $public_ip = filter_var(
+        $resolved,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+      );
+
+      if ($public_ip === false) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // ------------------------------------------------------------------
@@ -233,7 +338,8 @@ class AI_Composer_Syndication {
       if ($api_key === '') {
         return new WP_Error(
           'ai_composer_syndication_firecrawl_no_key',
-          __('Firecrawl is selected as the fetch strategy but no API key is configured. Add one under Intelligence > Syndication.', 'wp-intelligence')
+          __('Firecrawl is selected as the fetch strategy but no API key is configured. Add one under Intelligence > Syndication.', 'wp-intelligence'),
+          ['status' => 400]
         );
       }
 
@@ -273,28 +379,45 @@ class AI_Composer_Syndication {
     ]);
 
     if (is_wp_error($response)) {
-      return new WP_Error('ai_composer_syndication_fetch_error', __('The article URL could not be reached.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_fetch_error',
+        __('The article URL could not be reached.', 'wp-intelligence'),
+        ['status' => 502]
+      );
     }
 
     $status = (int) wp_remote_retrieve_response_code($response);
     if ($status === 403) {
       return new WP_Error(
         'ai_composer_syndication_http_error',
-        __('The source blocked the request (HTTP 403). This site has anti-scraping protections. Try switching to Firecrawl in settings, or paste the article text manually.', 'wp-intelligence')
+        __('The source blocked the request (HTTP 403). This site has anti-scraping protections. Try switching to Firecrawl in settings, or paste the article text manually.', 'wp-intelligence'),
+        ['status' => 403]
       );
     }
     if ($status < 200 || $status >= 400) {
-      return new WP_Error('ai_composer_syndication_http_error', sprintf(__('The source returned HTTP %d.', 'wp-intelligence'), $status));
+      return new WP_Error(
+        'ai_composer_syndication_http_error',
+        sprintf(__('The source returned HTTP %d.', 'wp-intelligence'), $status),
+        ['status' => $status >= 400 ? $status : 502]
+      );
     }
 
     $ct = strtolower((string) wp_remote_retrieve_header($response, 'content-type'));
     if ($ct !== '' && strpos($ct, 'text/html') === false && strpos($ct, 'application/xhtml+xml') === false) {
-      return new WP_Error('ai_composer_syndication_not_html', __('That URL does not appear to be a standard HTML article page.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_not_html',
+        __('That URL does not appear to be a standard HTML article page.', 'wp-intelligence'),
+        ['status' => 400]
+      );
     }
 
     $body = (string) wp_remote_retrieve_body($response);
     if (trim($body) === '') {
-      return new WP_Error('ai_composer_syndication_empty', __('The source page did not return readable content.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_empty',
+        __('The source page did not return readable content.', 'wp-intelligence'),
+        ['status' => 422]
+      );
     }
 
     return $body;
@@ -320,24 +443,40 @@ class AI_Composer_Syndication {
     ]);
 
     if (is_wp_error($response)) {
-      return new WP_Error('ai_composer_syndication_firecrawl_error', __('Could not reach the Firecrawl API.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_error',
+        __('Could not reach the Firecrawl API.', 'wp-intelligence'),
+        ['status' => 502]
+      );
     }
 
     $status = (int) wp_remote_retrieve_response_code($response);
     if ($status === 401 || $status === 403) {
-      return new WP_Error('ai_composer_syndication_firecrawl_auth', __('Firecrawl API key is invalid or expired. Check your key in settings.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_auth',
+        __('Firecrawl API key is invalid or expired. Check your key in settings.', 'wp-intelligence'),
+        ['status' => $status]
+      );
     }
     if ($status === 429) {
-      return new WP_Error('ai_composer_syndication_firecrawl_rate', __('Firecrawl rate limit reached. Wait a moment and try again.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_rate',
+        __('Firecrawl rate limit reached. Wait a moment and try again.', 'wp-intelligence'),
+        ['status' => 429]
+      );
     }
     if ($status < 200 || $status >= 400) {
-      return new WP_Error('ai_composer_syndication_firecrawl_http', sprintf(__('Firecrawl returned HTTP %d.', 'wp-intelligence'), $status));
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_http',
+        sprintf(__('Firecrawl returned HTTP %d.', 'wp-intelligence'), $status),
+        ['status' => $status >= 400 ? $status : 502]
+      );
     }
 
     $body = json_decode(wp_remote_retrieve_body($response), true);
     if (! is_array($body) || empty($body['success'])) {
       $error_msg = $body['error'] ?? __('Firecrawl returned an unsuccessful response.', 'wp-intelligence');
-      return new WP_Error('ai_composer_syndication_firecrawl_fail', $error_msg);
+      return new WP_Error('ai_composer_syndication_firecrawl_fail', $error_msg, ['status' => 502]);
     }
 
     $data     = $body['data'] ?? [];
@@ -347,7 +486,11 @@ class AI_Composer_Syndication {
 
     $body_text = $markdown !== '' ? $markdown : wp_strip_all_tags($html);
     if (strlen($body_text) < 280) {
-      return new WP_Error('ai_composer_syndication_firecrawl_short', __('Firecrawl could not extract enough readable content from this URL.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_short',
+        __('Firecrawl could not extract enough readable content from this URL.', 'wp-intelligence'),
+        ['status' => 422]
+      );
     }
 
     if (strlen($body_text) > 12000) {
@@ -447,7 +590,11 @@ class AI_Composer_Syndication {
     }
 
     if (self::mb_len($body_text) < 280) {
-      return new WP_Error('ai_composer_syndication_unreadable', __('Could not extract enough readable article text from this URL.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_unreadable',
+        __('Could not extract enough readable article text from this URL.', 'wp-intelligence'),
+        ['status' => 422]
+      );
     }
 
     if ($title === '') {
@@ -531,7 +678,11 @@ class AI_Composer_Syndication {
 
   private function generate_draft(array $article, string $prompt = ''): array|WP_Error {
     if (! $this->provider->is_available()) {
-      return new WP_Error('ai_composer_syndication_no_provider', __('No AI provider is configured.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_no_provider',
+        __('No AI provider is configured.', 'wp-intelligence'),
+        ['status' => 503]
+      );
     }
 
     $settings = AI_Composer_Settings::get_syndication_settings();
@@ -562,7 +713,11 @@ class AI_Composer_Syndication {
       $content = json_decode(self::extract_json_object($raw), true);
     }
     if (! is_array($content)) {
-      return new WP_Error('ai_composer_syndication_bad_json', __('AI response was not valid JSON.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_bad_json',
+        __('AI response was not valid JSON.', 'wp-intelligence'),
+        ['status' => 502]
+      );
     }
 
     $title        = sanitize_text_field((string) ($content['title'] ?? $article['title'] ?? ''));
@@ -572,7 +727,11 @@ class AI_Composer_Syndication {
     $content_html = wp_kses_post((string) ($content['content_html'] ?? ''));
 
     if ($content_html === '') {
-      return new WP_Error('ai_composer_syndication_empty_content', __('AI returned empty content.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_syndication_empty_content',
+        __('AI returned empty content.', 'wp-intelligence'),
+        ['status' => 502]
+      );
     }
 
     $source_url = (string) ($article['url'] ?? '');

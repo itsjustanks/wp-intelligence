@@ -50,7 +50,7 @@ class WPI_Visibility_REST_Variables_Controller extends WP_REST_Controller {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_variables' ),
-					'permission_callback' => '__return_true', // Read only, so anyone can view.
+					'permission_callback' => array( $this, 'get_variables_permissions_check' ),
 					'args'                => array(
 						'integration'  => array(
 							'type'        => 'string',
@@ -72,6 +72,36 @@ class WPI_Visibility_REST_Variables_Controller extends WP_REST_Controller {
 				'schema' => array( $this, 'get_public_item_schema' ),
 			)
 		);
+	}
+
+	/**
+	 * Check if a given request can read visibility variables.
+	 *
+	 * Defaults to authenticated `edit_posts` users for safer exposure.
+	 * Site owners can opt back into public reads with:
+	 * - `wpi_visibility_rest_public_variables_read` => true.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 * @return bool
+	 */
+	public function get_variables_permissions_check( $request ) {
+		$public_read = (bool) apply_filters(
+			'wpi_visibility_rest_public_variables_read',
+			false,
+			$request
+		);
+
+		if ( $public_read ) {
+			return true;
+		}
+
+		$capability = (string) apply_filters(
+			'wpi_visibility_rest_variables_read_capability',
+			'edit_posts',
+			$request
+		);
+
+		return current_user_can( $capability );
 	}
 
 	/**

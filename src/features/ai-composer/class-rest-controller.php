@@ -107,10 +107,12 @@ class AI_Composer_REST_Controller {
   public static function handle_status(WP_REST_Request $request): WP_REST_Response {
     $composer = AI_Composer::get_instance();
     $provider = $composer->provider();
+    $readiness = $provider->get_readiness_status();
 
     return new WP_REST_Response([
-      'available'     => $provider->is_available(),
+      'available'     => $readiness['can_compose'],
       'provider'      => $provider->get_provider_info(),
+      'readiness'     => $readiness,
       'abilities_api' => function_exists('wp_register_ability'),
       'version'       => AI_COMPOSER_VERSION,
     ], 200);

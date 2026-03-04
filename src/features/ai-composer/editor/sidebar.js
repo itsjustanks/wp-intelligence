@@ -72,11 +72,13 @@
     var _resultState = useState(null);
     var result = _resultState[0];
     var setResult = _resultState[1];
+    var _lastRequestState = useState(null);
+    var lastRequest = _lastRequestState[0];
+    var setLastRequest = _lastRequestState[1];
 
     var blockEditor = useDispatch('core/block-editor');
     var insertBlocks = blockEditor.insertBlocks;
     var replaceBlocks = blockEditor.replaceBlocks;
-    var resetBlocks = blockEditor.resetBlocks;
 
     var editorState = useSelect(function (select) {
       var editor = select('core/block-editor');
@@ -136,27 +138,10 @@
       return blocks.map(serializeBlockForContext).filter(Boolean);
     }
 
-    var handleCompose = useCallback(function () {
-      if (!prompt.trim()) return;
-
+    function runComposeRequest(requestData) {
       setIsLoading(true);
       setError(null);
       setResult(null);
-
-      var requestData = {
-        prompt: prompt,
-        template: editorState.currentTemplate,
-        compose_mode: composeMode,
-        insert_mode: insertMode,
-      };
-
-      if (composeMode === 'selected_block' && editorState.selectedBlock) {
-        requestData.selected_block_context = serializeBlockForContext(editorState.selectedBlock);
-      }
-
-      if (composeMode === 'page' && editorState.allBlocks.length > 0) {
-        requestData.page_context = serializePageContext(editorState.allBlocks);
-      }
 
       apiFetch({
         path: '/' + config.restNamespace + '/compose',
@@ -172,6 +157,7 @@
         }
 
         setResult(response);
+        setLastRequest(requestData);
 
         var parsed = [];
 
@@ -186,23 +172,23 @@
           return;
         }
 
-        if (composeMode === 'selected_block' && editorState.selectedBlockId) {
+        if (requestData.compose_mode === 'selected_block' && editorState.selectedBlockId) {
           replaceBlocks([editorState.selectedBlockId], parsed);
-        } else if (composeMode === 'page') {
+        } else if (requestData.compose_mode === 'page') {
           var allIds = editorState.blockOrder;
           if (allIds.length > 0) {
             replaceBlocks(allIds, parsed);
           } else {
             insertBlocks(parsed);
           }
-        } else if (insertMode === 'replace_all') {
+        } else if (requestData.insert_mode === 'replace_all') {
           var allIds = editorState.blockOrder;
           if (allIds.length > 0) {
             replaceBlocks(allIds, parsed);
           } else {
             insertBlocks(parsed);
           }
-        } else if (insertMode === 'insert_after' && editorState.selectedBlockId) {
+        } else if (requestData.insert_mode === 'insert_after' && editorState.selectedBlockId) {
           var idx = editorState.blockOrder.indexOf(editorState.selectedBlockId);
           insertBlocks(parsed, idx + 1);
         } else {
@@ -214,9 +200,63 @@
         var msg = err.message || err.data?.message || __('An unexpected error occurred.', 'wp-intelligence');
         setError(msg);
       });
+    }
+
+    function buildRequestData() {
+      var requestData = {
+        prompt: prompt,
+        template: editorState.currentTemplate,
+        compose_mode: composeMode,
+        insert_mode: insertMode,
+      };
+
+      if (composeMode === 'selected_block' && editorState.selectedBlock) {
+        requestData.selected_block_context = serializeBlockForContext(editorState.selectedBlock);
+      }
+
+      if (composeMode === 'page' && editorState.allBlocks.length > 0) {
+        requestData.page_context = serializePageContext(editorState.allBlocks);
+      }
+
+      return requestData;
+    }
+
+    var handleCompose = useCallback(function () {
+      if (!prompt.trim()) return;
+      runComposeRequest(buildRequestData());
     }, [prompt, insertMode, composeMode, editorState]);
 
-    var providerReady = config.providerReady;
+    var handleRegenerate = useCallback(function () {
+      if (!lastRequest) return;
+      runComposeRequest(lastRequest);
+    }, [lastRequest, editorState]);
+
+    var providerStatus = (config.providerStatus && typeof config.providerStatus === 'object')
+      ? config.providerStatus
+      : {};
+    var providerReady = (typeof providerStatus.can_compose === 'boolean')
+      ? providerStatus.can_compose
+      : !!config.providerReady;
+    var providerMessage = providerStatus.message || '';
+    var providerRuntime = providerStatus.runtime || '';
+    var needsSelectedBlock = composeMode === 'selected_block' && !editorState.selectedBlockId;
+    var insertAfterWithoutSelection = composeMode === 'new_content'
+      && insertMode === 'insert_after'
+      && !editorState.selectedBlockId;
+    var canCompose = !isLoading
+      && !!prompt.trim()
+      && providerReady
+      && !needsSelectedBlock
+      && !insertAfterWithoutSelection;
+
+    var composeModeHint = '';
+    if (composeMode === 'selected_block') {
+      composeModeHint = __('Rewrites only the selected block and replaces it in-place.', 'wp-intelligence');
+    } else if (composeMode === 'page') {
+      composeModeHint = __('Regenerates the entire page structure from your prompt and existing context.', 'wp-intelligence');
+    } else {
+      composeModeHint = __('Creates fresh content and inserts it using the selected insert mode.', 'wp-intelligence');
+    }
 
     return el(Fragment, null,
       el(PluginSidebarMoreMenuItem, {
@@ -235,11 +275,21 @@
             initialOpen: true,
           },
 
+            providerRuntime && el('p', {
+              className: 'ai-composer-provider-badge',
+            }, __('Runtime:', 'wp-intelligence') + ' ' + providerRuntime),
+
             !providerReady && el(Notice, {
               status: 'warning',
               isDismissible: false,
               className: 'ai-composer-notice',
-            }, __('No AI provider configured. Add an API key in Settings → WP Intelligence.', 'wp-intelligence')),
+            }, providerMessage || __('No AI provider configured. Add an API key in Settings → WP Intelligence.', 'wp-intelligence')),
+
+            providerReady && providerStatus.native && providerMessage && el(Notice, {
+              status: 'info',
+              isDismissible: false,
+              className: 'ai-composer-notice',
+            }, providerMessage),
 
             el(TextareaControl, {
               label: __('Describe the page you want to build', 'wp-intelligence'),
@@ -263,6 +313,10 @@
               disabled: isLoading,
             }),
 
+            el('p', {
+              className: 'ai-composer-mode-hint',
+            }, composeModeHint),
+
             composeMode === 'selected_block' && !editorState.selectedBlockId && el(Notice, {
               status: 'info',
               isDismissible: false,
@@ -281,18 +335,36 @@
               disabled: isLoading,
             }),
 
+            insertAfterWithoutSelection && el(Notice, {
+              status: 'info',
+              isDismissible: false,
+              className: 'ai-composer-notice',
+            }, __('Select a target block to use "Insert after selected block".', 'wp-intelligence')),
+
+            composeMode === 'page' && editorState.blockCount === 0 && el(Notice, {
+              status: 'info',
+              isDismissible: false,
+              className: 'ai-composer-notice',
+            }, __('This page is currently empty. Optimizing entire page will insert a new layout.', 'wp-intelligence')),
+
             el(PanelRow, null,
               el(Button, {
                 variant: 'primary',
                 onClick: handleCompose,
-                disabled: isLoading || !prompt.trim() || !providerReady,
+                disabled: !canCompose,
                 isBusy: isLoading,
                 className: 'ai-composer-generate-btn',
               },
                 isLoading
                   ? el(Fragment, null, el(Spinner), ' ', __('Composing…', 'wp-intelligence'))
                   : __('Compose', 'wp-intelligence')
-              )
+              ),
+              el(Button, {
+                variant: 'secondary',
+                onClick: handleRegenerate,
+                disabled: isLoading || !lastRequest,
+                className: 'ai-composer-regenerate-btn',
+              }, __('Regenerate last result', 'wp-intelligence'))
             ),
 
             error && el(Notice, {

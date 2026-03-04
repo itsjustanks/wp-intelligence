@@ -11,6 +11,24 @@
   margin: 12px 0 0;
 }
 
+.ai-composer-provider-badge {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #50575e;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-composer-mode-hint {
+  margin: -6px 0 12px;
+  font-size: 12px;
+  color: #646970;
+}
+
+.ai-composer-regenerate-btn {
+  margin-left: 8px;
+}
+
 .ai-composer-tips {
   margin: 0;
   padding: 0 0 0 18px;

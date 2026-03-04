@@ -65,10 +65,13 @@ class AI_Composer {
       file_exists($css_path) ? (string) filemtime($css_path) : WPI_VERSION
     );
 
+    $provider_status = $this->provider->get_readiness_status();
+
     wp_localize_script('ai-composer-sidebar', 'aiComposerConfig', [
       'restNamespace'  => 'ai-composer/v1',
       'nonce'          => wp_create_nonce('wp_rest'),
-      'providerReady'  => $this->provider->is_available(),
+      'providerReady'  => $provider_status['can_compose'],
+      'providerStatus' => $provider_status,
       'version'        => AI_COMPOSER_VERSION,
     ]);
   }
@@ -92,7 +95,8 @@ class AI_Composer {
     if (! $this->provider->is_available()) {
       return new WP_Error(
         'ai_composer_no_provider',
-        __('No AI provider is configured. Add an API key in Settings or WordPress AI Credentials.', 'wp-intelligence')
+        __('No AI provider is configured. Add an API key in Settings or WordPress AI Credentials.', 'wp-intelligence'),
+        ['status' => 503]
       );
     }
 
@@ -111,7 +115,8 @@ class AI_Composer {
     if (! is_array($manifest) || empty($manifest['blocks'])) {
       return new WP_Error(
         'ai_composer_invalid_manifest',
-        __('The AI returned an invalid composition manifest.', 'wp-intelligence')
+        __('The AI returned an invalid composition manifest.', 'wp-intelligence'),
+        ['status' => 502]
       );
     }
 

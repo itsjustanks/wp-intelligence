@@ -44,7 +44,7 @@ class WPI_Visibility_REST_Settings_Controller extends WP_REST_Controller {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_settings' ),
-					'permission_callback' => '__return_true', // Read only, so anyone can view.
+					'permission_callback' => array( $this, 'get_settings_permissions_check' ),
 				),
 				array(
 					'methods'             => WP_REST_Server::EDITABLE,
@@ -74,6 +74,36 @@ class WPI_Visibility_REST_Settings_Controller extends WP_REST_Controller {
 		} else {
 			return new WP_Error( '404', __( 'Something went wrong, the visibility settings could not be found.', 'wp-intelligence' ), array( 'status' => 404 ) );
 		}
+	}
+
+	/**
+	 * Check if a given request can read visibility settings.
+	 *
+	 * Defaults to authenticated `edit_posts` users for safer exposure.
+	 * Site owners can opt back into public reads with:
+	 * - `wpi_visibility_rest_public_settings_read` => true.
+	 *
+	 * @param WP_REST_Request $request Request instance.
+	 * @return bool
+	 */
+	public function get_settings_permissions_check( $request ) {
+		$public_read = (bool) apply_filters(
+			'wpi_visibility_rest_public_settings_read',
+			false,
+			$request
+		);
+
+		if ( $public_read ) {
+			return true;
+		}
+
+		$capability = (string) apply_filters(
+			'wpi_visibility_rest_settings_read_capability',
+			'edit_posts',
+			$request
+		);
+
+		return current_user_can( $capability );
 	}
 
 	/**

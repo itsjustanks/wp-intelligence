@@ -17,7 +17,7 @@ class AI_Composer_Provider {
    * @return string|WP_Error Raw JSON string from the AI.
    */
   public function generate(string $system_prompt, string $user_prompt, array $json_schema): string|WP_Error {
-    if (function_exists('wp_ai_client_prompt')) {
+    if ($this->has_native_client()) {
       return $this->generate_via_wp_ai_client($system_prompt, $user_prompt, $json_schema);
     }
 
@@ -25,7 +25,7 @@ class AI_Composer_Provider {
   }
 
   public function is_available(): bool {
-    if (function_exists('wp_ai_client_prompt')) {
+    if ($this->has_native_client()) {
       return true;
     }
 
@@ -33,7 +33,7 @@ class AI_Composer_Provider {
   }
 
   public function get_provider_info(): array {
-    if (function_exists('wp_ai_client_prompt')) {
+    if ($this->has_native_client()) {
       return [
         'provider' => 'wp-ai-client',
         'native'   => true,
@@ -46,6 +46,51 @@ class AI_Composer_Provider {
       'native'    => false,
       'model'     => $this->get_model(),
     ];
+  }
+
+  /**
+   * Return an editor-facing readiness summary for UX messaging.
+   *
+   * @return array{
+   *   can_compose:bool,
+   *   runtime:string,
+   *   native:bool,
+   *   configured:bool|null,
+   *   requires_configuration:bool,
+   *   message:string,
+   *   model:string
+   * }
+   */
+  public function get_readiness_status(): array {
+    if ($this->has_native_client()) {
+      return [
+        'can_compose'             => true,
+        'runtime'                 => 'wp-ai-client',
+        'native'                  => true,
+        'configured'              => null,
+        'requires_configuration'  => false,
+        'message'                 => __('WordPress native AI runtime detected. Credentials are managed in Settings -> AI Credentials.', 'wp-intelligence'),
+        'model'                   => '',
+      ];
+    }
+
+    $has_api_key = ($this->get_api_key() !== '');
+
+    return [
+      'can_compose'            => $has_api_key,
+      'runtime'                => $has_api_key ? 'openai-direct' : 'none',
+      'native'                 => false,
+      'configured'             => $has_api_key,
+      'requires_configuration' => ! $has_api_key,
+      'message'                => $has_api_key
+        ? __('Using OpenAI direct fallback from WP Intelligence settings.', 'wp-intelligence')
+        : __('No AI provider is configured. Add an OpenAI API key in WP Intelligence settings or configure the WordPress native AI runtime.', 'wp-intelligence'),
+      'model'                  => $has_api_key ? (string) $this->get_model() : '',
+    ];
+  }
+
+  private function has_native_client(): bool {
+    return function_exists('wp_ai_client_prompt');
   }
 
   private function generate_via_wp_ai_client(string $system_prompt, string $user_prompt, array $json_schema): string|WP_Error {
@@ -71,7 +116,8 @@ class AI_Composer_Provider {
     if ($api_key === '') {
       return new WP_Error(
         'ai_composer_no_api_key',
-        __('No OpenAI API key configured. Go to Settings → WP Intelligence to add one.', 'wp-intelligence')
+        __('No OpenAI API key configured. Go to Settings → WP Intelligence to add one.', 'wp-intelligence'),
+        ['status' => 400]
       );
     }
 
@@ -104,7 +150,7 @@ class AI_Composer_Provider {
     ]);
 
     if (is_wp_error($response)) {
-      return new WP_Error('ai_composer_request_failed', $response->get_error_message());
+      return new WP_Error('ai_composer_request_failed', $response->get_error_message(), ['status' => 502]);
     }
 
     $status = wp_remote_retrieve_response_code($response);
@@ -118,7 +164,11 @@ class AI_Composer_Provider {
 
     $content = $data['choices'][0]['message']['content'] ?? null;
     if (! is_string($content)) {
-      return new WP_Error('ai_composer_empty_response', __('The AI returned an empty response.', 'wp-intelligence'));
+      return new WP_Error(
+        'ai_composer_empty_response',
+        __('The AI returned an empty response.', 'wp-intelligence'),
+        ['status' => 502]
+      );
     }
 
     return $content;
