@@ -1,0 +1,56 @@
+---
+title: Other Modules
+description: Additional modules for security, performance, code injection, and more.
+---
+
+## AI Chat
+
+Admin-wide AI chat assistant with multi-turn conversations, page context awareness, and saved history.
+
+## Query Loop Load More
+
+Adds a load more button and infinite scroll option to the Query Loop pagination block.
+
+## Admin Columns & Post Type Switcher
+
+- Adds permalink and template columns to post list tables
+- Post type switcher metabox for converting between post types
+
+## Sitewide Code Injection
+
+Customizer controls for adding HTML/JS to the site `<head>` and footer — no child theme required.
+
+## Security Hardening
+
+Optional security measures (disabled by default):
+
+- Disable XML-RPC
+- Disable RSS feeds
+- Remove WordPress version from headers
+- Remove RSD/wlwmanifest/shortlink
+- Disable built-in file editor
+
+## Performance
+
+Runtime performance optimizations (disabled by default):
+
+- GZIP compression
+- Disable emojis script
+- Disable oEmbed
+- Disable Dashicons on frontend
+- Disable jQuery Migrate
+
+:::note
+Runtime-defined constants are best-effort fallbacks. For deterministic behavior, define performance constants in `wp-config.php`.
+:::
+
+## Resource Hints
+
+Add `preconnect` and `dns-prefetch` hints for CDN and external domains to improve page load speed.
+
+## WooCommerce Optimization
+
+Requires WooCommerce:
+
+- **Conditional asset loading** — only load WooCommerce scripts on shop pages
+- **Checkout field persistence** — remember checkout values for returning customers

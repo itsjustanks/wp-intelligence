@@ -1,0 +1,74 @@
+---
+title: Configuration
+description: Configure AI providers, modules, and plugin settings.
+---
+
+## AI Provider Setup
+
+WP Intelligence supports two provider paths:
+
+### WordPress 7.0+ Native AI Client (Preferred)
+
+If your WordPress installation has the native AI client (`wp_ai_client_prompt`), the plugin uses it automatically. Configure credentials in **Settings → AI Credentials**.
+
+### OpenAI Fallback (WordPress 6.5–6.x)
+
+For older WordPress versions, configure the OpenAI fallback:
+
+1. Go to **Settings → WP Intelligence → AI Provider**
+2. Enter your OpenAI API key
+3. Select a model (default: GPT-5.2)
+
+You can also set the API key via constant or filter:
+
+```php
+// wp-config.php
+define('WP_INTELLIGENCE_OPENAI_KEY', 'sk-...');
+```
+
+```php
+// functions.php or plugin
+add_filter('ai_composer_openai_api_key', function (): string {
+    return getenv('WP_INTELLIGENCE_OPENAI_KEY') ?: '';
+});
+```
+
+## Module Management
+
+Navigate to the **Modules** tab to enable or disable features:
+
+| Module | Category | Default |
+|---|---|---|
+| AI Composer | AI & Content | Enabled |
+| Content Intelligence | AI & Content | Enabled |
+| AI Chat | AI & Content | Enabled |
+| Featured Image AI | AI & Content | Enabled |
+| Block Visibility | Editor | Enabled |
+| Query Loop Load More | Editor | Enabled |
+| Admin Experience | Admin | Enabled |
+| Admin Columns | Admin | Enabled |
+| Sitewide Code Injection | Developer Tools | Enabled |
+| WooCommerce Optimization | Commerce | Enabled (requires WooCommerce) |
+| Security Hardening | Site Health | Disabled |
+| Performance | Site Health | Disabled |
+| Resource Hints | Site Health | Disabled |
+
+Disabled modules have **zero runtime overhead** — they are not loaded at all.
+
+## Settings Storage
+
+All settings are stored in the `ai_composer_settings` WordPress option. Module flags are stored separately in `wpi_modules`.
+
+Sub-module settings use their own options:
+- `wpi_security`
+- `wpi_performance`
+- `wpi_woocommerce`
+- `wpi_resource_hints`
+
+## Uninstall Behavior
+
+By default, plugin data is preserved on uninstall. To remove all data:
+
+```php
+define('WPI_REMOVE_DATA_ON_UNINSTALL', true);
+```

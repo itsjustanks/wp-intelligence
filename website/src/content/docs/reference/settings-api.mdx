@@ -1,0 +1,107 @@
+---
+title: Settings API
+description: Settings storage, option keys, and configuration reference.
+---
+
+## Storage Options
+
+WP Intelligence uses several WordPress options for settings storage:
+
+| Option Name | Purpose |
+|---|---|
+| `ai_composer_settings` | Main plugin settings (API key, model, blocks, prompting, syndication, featured image AI) |
+| `wpi_modules` | Module enable/disable flags (associative array of `module_id => bool`) |
+| `wpi_security` | Security hardening toggles |
+| `wpi_performance` | Performance optimization toggles |
+| `wpi_woocommerce` | WooCommerce optimization settings |
+| `wpi_resource_hints` | Preconnect/dns-prefetch origins |
+
+## Main Settings Shape
+
+The `ai_composer_settings` option contains:
+
+```php
+[
+    'api_key'                => '',          // OpenAI API key (fallback mode)
+    'model'                  => 'gpt-5.2',  // Selected model
+    'block_selection_mode'   => 'all',       // 'all' or 'selected'
+    'enabled_blocks'         => [],          // Array of block names when mode is 'selected'
+    'theme_strategy_enabled' => '1',         // '1' or '0'
+    'system_prompt_prepend'  => '',          // Custom prepend text
+    'system_prompt_append'   => '',          // Custom append text
+    'syndication'            => [
+        'enabled_post_types'     => [],
+        'system_prompt'          => '',
+        'source_taxonomy'        => '',
+        'fetch_strategy'         => 'builtin',  // 'builtin' or 'firecrawl'
+        'firecrawl_api_key'      => '',
+        'brand_context'          => '',
+        'training_urls'          => '',
+        'example_post_ids'       => [],
+        'output_format_defaults' => [],
+        'content_styles'         => [],
+    ],
+    'featured_image_ai'      => [
+        'image_style'         => 'photo-realistic',
+        'aspect_ratio'        => 'landscape',
+        'brand_colors'        => '',
+        'custom_instructions' => '',
+        'overlay_show_title'  => '0',
+        'overlay_position'    => 'bottom',
+        'overlay_bg_color'    => '#000000',
+        'overlay_text_color'  => '#ffffff',
+        'overlay_opacity'     => '70',
+    ],
+    'admin_experience'       => [...],
+]
+```
+
+## Module Flags
+
+The `wpi_modules` option stores an associative array:
+
+```php
+[
+    'ai_composer'         => true,
+    'syndication'         => true,
+    'ai_chat'             => true,
+    'featured_image_ai'   => true,
+    'block_visibility'    => true,
+    'query_loop_load_more'=> true,
+    'admin_experience'    => true,
+    'admin_columns'       => true,
+    'code_injection'      => true,
+    'woocommerce'         => true,
+    'security'            => false,
+    'performance'         => false,
+    'resource_hints'      => false,
+]
+```
+
+## Theme Integration
+
+Themes can pre-configure settings on first activation:
+
+```php
+add_action('wpi_prefill_module_defaults', function () {
+    update_option('wpi_modules', [
+        'ai_composer'      => true,
+        'admin_experience'  => true,
+        'security'          => true,
+    ]);
+
+    update_option('wpi_security', [
+        'disable_xmlrpc'    => true,
+        'remove_version'    => true,
+    ]);
+});
+```
+
+Themes can also force-enable modules:
+
+```php
+add_filter('wpi_force_active_modules', function (array $forced): array {
+    $forced[] = 'admin_experience';
+    return $forced;
+});
+```

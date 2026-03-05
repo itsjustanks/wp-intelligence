@@ -1,0 +1,119 @@
+---
+title: REST API
+description: REST API endpoints for AI composition, catalog discovery, and settings management.
+---
+
+WP Intelligence provides REST API endpoints under two namespaces.
+
+## AI Composer API
+
+**Namespace:** `ai-composer/v1`
+
+**Authentication:** All endpoints require `current_user_can( apply_filters('ai_composer_capability', 'edit_posts') )`.
+
+### POST /compose
+
+Generate a page composition from a prompt.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `prompt` | string | Yes | Natural language description of the desired page |
+| `template` | string | No | Pattern template to use as a base |
+| `compose_mode` | string | No | Composition mode |
+| `insert_mode` | string | No | How to insert: `append`, `replace`, `insert_after` |
+
+**Response:**
+
+```json
+{
+    "success": true,
+    "manifest": { "...raw AI manifest..." },
+    "blockTree": [ "...normalized block objects..." ],
+    "blocks": "<!-- wp:group -->...<!-- /wp:group -->",
+    "summary": "Generated 5 blocks across 3 sections."
+}
+```
+
+### GET /catalog
+
+Retrieve the composable block and pattern catalog.
+
+**Response:**
+
+```json
+{
+    "blocks": {
+        "core/paragraph": { "name": "core/paragraph", "title": "Paragraph", "...": "..." },
+        "...": "..."
+    },
+    "patterns": [ "..." ]
+}
+```
+
+### GET /status
+
+Check provider availability and plugin status.
+
+**Response:**
+
+```json
+{
+    "available": true,
+    "provider": "native",
+    "abilities_api": true,
+    "version": "0.2.0"
+}
+```
+
+## Settings API
+
+**Namespace:** `wp-intelligence/v1`
+
+**Authentication:** Requires `manage_options` capability.
+
+### GET /settings
+
+Retrieve all plugin settings, module flags, and module registry.
+
+### POST /settings
+
+Save settings and module flags. Accepts partial updates.
+
+**Body:**
+
+```json
+{
+    "settings": { "api_key": "sk-...", "model": "gpt-5.2" },
+    "modules": { "ai_composer": true, "security": false }
+}
+```
+
+## Block Visibility API
+
+**Namespace:** `block-visibility/v1`
+
+### GET /settings
+
+Retrieve block visibility settings. Authenticated by default.
+
+### GET /variables
+
+Retrieve block visibility variables. Authenticated by default.
+
+To allow public reads:
+
+```php
+add_filter('wpi_visibility_rest_public_settings_read', '__return_true');
+add_filter('wpi_visibility_rest_public_variables_read', '__return_true');
+```
+
+## Abilities API
+
+When `wp_register_ability` exists (WordPress 7.0+), the plugin registers:
+
+- `ai-composer/compose-page`
+- `ai-composer/list-blocks`
+
+These enable capability discovery by tools that consume WordPress abilities.

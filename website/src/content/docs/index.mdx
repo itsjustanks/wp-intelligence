@@ -1,0 +1,55 @@
+---
+title: WP Intelligence
+description: Modular AI and site optimization toolkit for WordPress.
+template: splash
+hero:
+  tagline: AI-powered composition, content intelligence, and site optimization — all in one modular WordPress plugin.
+  actions:
+    - text: Get Started
+      link: /wp-intelligence/getting-started/installation/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/whole-code/wp-intelligence
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Key Features
+
+<CardGrid>
+  <Card title="AI Composer" icon="pencil">
+    Prompt-to-page composition in the block editor sidebar. Uses your live block registry and registered patterns.
+  </Card>
+  <Card title="Content Intelligence" icon="document">
+    Generate content from URLs, videos, text, and files with AI-powered rewriting, source citations, and ACF field mapping.
+  </Card>
+  <Card title="Featured Image AI" icon="sun">
+    Automatically generate featured images using AI when publishing posts, with customizable styles and title overlays.
+  </Card>
+  <Card title="Block Visibility" icon="approve-check">
+    Conditional visibility controls and scheduling for all WordPress blocks — by user role, date/time, screen size, and more.
+  </Card>
+  <Card title="Modular Architecture" icon="setting">
+    Enable only the features your site needs. Disabled modules have zero runtime overhead.
+  </Card>
+  <Card title="Provider Agnostic" icon="random">
+    Works with WordPress 7.0+ native AI client or falls back to direct OpenAI API. No lock-in.
+  </Card>
+</CardGrid>
+
+## Compatibility
+
+| Environment | Provider | What to configure |
+|---|---|---|
+| WordPress 7.0+ with native AI client | Native WP AI client | Configure credentials in Settings → AI Credentials |
+| WordPress 6.5–6.x | Direct OpenAI fallback | Add OpenAI API key in Settings → WP Intelligence |
+| No provider configured | None | REST status shows unavailable with actionable guidance |
+
+## Requirements
+
+- WordPress **6.5+**
+- PHP **8.0+**
+- Block editor (Gutenberg)
+- AI provider: Native WP AI credentials or OpenAI API key

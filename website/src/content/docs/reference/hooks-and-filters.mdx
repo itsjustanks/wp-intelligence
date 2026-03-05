@@ -1,0 +1,93 @@
+---
+title: Hooks & Filters
+description: Complete reference for WP Intelligence filters and actions.
+---
+
+WP Intelligence exposes extensive hooks for customization without forking plugin code.
+
+## Filters
+
+### Block & Pattern Catalog
+
+| Filter | Description |
+|---|---|
+| `ai_composer_block_catalog` | Modify the discovered block catalog before prompting |
+| `ai_composer_composable_blocks` | Filter the final composable block list |
+| `ai_composer_pattern_catalog` | Modify the pattern catalog before prompting |
+| `ai_composer_always_allowed_blocks` | Override structural blocks that are always allowed |
+| `ai_composer_section_pattern_slugs` | Control which patterns are treated as sections |
+
+### Model & Provider
+
+| Filter | Description |
+|---|---|
+| `ai_composer_available_models` | Add or remove available models in the settings dropdown |
+| `ai_composer_model_preferences` | Set model preferences and fallback order |
+| `ai_composer_model` | Override the model used for a specific request |
+| `ai_composer_openai_api_key` | Provide or override the OpenAI API key |
+| `ai_composer_temperature` | Control the AI temperature parameter |
+
+### Prompting & Output
+
+| Filter | Description |
+|---|---|
+| `ai_composer_system_prompt` | Modify the complete system prompt before sending |
+| `ai_composer_output_schema` | Customize the JSON schema for AI responses |
+| `ai_composer_manifest` | Post-process the raw AI manifest |
+| `ai_composer_result` | Filter the final composition result |
+| `ai_composer_block_tree` | Modify the normalized block tree |
+| `ai_composer_block_grammar` | Filter the serialized block grammar |
+
+### Permissions & Capability
+
+| Filter | Description |
+|---|---|
+| `ai_composer_capability` | Override the required capability (default: `edit_posts`) |
+
+## Actions
+
+| Action | Description |
+|---|---|
+| `ai_composer_init` | Fired when the AI Composer module initializes |
+| `ai_composer_before_compose` | Fired before a composition request is processed |
+| `ai_composer_after_compose` | Fired after a successful composition |
+| `ai_composer_composition_error` | Fired when a composition fails |
+
+## Examples
+
+### Enrich custom block descriptions
+
+```php
+add_filter('ai_composer_block_catalog', function (array $catalog): array {
+    if (isset($catalog['acf/pricing-table'])) {
+        $catalog['acf/pricing-table']['description'] =
+            'Displays pricing tiers with CTA buttons.';
+    }
+    return $catalog;
+});
+```
+
+### Tighten permission capability
+
+```php
+add_filter('ai_composer_capability', function (): string {
+    return 'publish_pages';
+});
+```
+
+### Set fallback API key from environment
+
+```php
+add_filter('ai_composer_openai_api_key', function (): string {
+    return getenv('WP_INTELLIGENCE_OPENAI_KEY') ?: '';
+});
+```
+
+### Add a custom model
+
+```php
+add_filter('ai_composer_available_models', function (array $models): array {
+    $models['claude-4-sonnet'] = 'Claude 4 Sonnet';
+    return $models;
+});
+```
