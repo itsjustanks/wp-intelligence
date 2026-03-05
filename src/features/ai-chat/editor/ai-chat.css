@@ -1,16 +1,36 @@
 /* ═══════════════════════════════════════════════
- *  AI Chat – Drawer (slide-out panel)
+ *  AI Chat – WordPress-native design tokens
+ * ═══════════════════════════════════════════════ */
+
+.wpi-chat-drawer,
+.wpi-chat-page {
+  --wpi-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  --wpi-mono: Menlo, Consolas, monaco, monospace;
+  --wpi-color-primary: var(--wp-admin-theme-color, #3858e9);
+  --wpi-color-primary-darker: var(--wp-admin-theme-color-darker-10, #2145e6);
+  --wpi-color-text: #1e1e1e;
+  --wpi-color-text-secondary: #757575;
+  --wpi-color-border: #e0e0e0;
+  --wpi-color-surface: #fff;
+  --wpi-color-surface-secondary: #f0f0f0;
+  --wpi-color-surface-tertiary: #f6f7f7;
+  --wpi-color-error: #cc1818;
+  --wpi-radius: 2px;
+  --wpi-radius-lg: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+ *  Drawer (slide-out panel)
  * ═══════════════════════════════════════════════ */
 
 .wpi-chat-drawer__overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.35);
   z-index: 99998;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
-  backdrop-filter: blur(2px);
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
 .wpi-chat-drawer.is-open .wpi-chat-drawer__overlay {
@@ -24,13 +44,14 @@
   right: -460px;
   width: 440px;
   height: 100vh;
-  background: #fff;
+  background: var(--wpi-color-surface);
   z-index: 99999;
   display: flex;
   flex-direction: column;
-  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.15);
-  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-left: 1px solid #e5e5e5;
+  box-shadow: -2px 0 16px rgba(0, 0, 0, 0.1);
+  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 1px solid var(--wpi-color-border);
+  font-family: var(--wpi-font);
 }
 
 .wpi-chat-drawer.is-open .wpi-chat-drawer__panel {
@@ -44,30 +65,33 @@
   }
 }
 
-/* Drawer Header */
+/* Drawer Header – matches Gutenberg panel header */
 .wpi-chat-drawer__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid #eee;
-  background: #fafafa;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wpi-color-border);
+  background: var(--wpi-color-surface);
   flex-shrink: 0;
+  min-height: 48px;
+  box-sizing: border-box;
 }
 
 .wpi-chat-drawer__header-left,
 .wpi-chat-drawer__header-right {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .wpi-chat-drawer__title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
-  margin-left: 6px;
-  letter-spacing: -0.01em;
+  color: var(--wpi-color-text);
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .wpi-chat-drawer__header button,
@@ -75,21 +99,28 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 6px;
-  color: #666;
-  border-radius: 6px;
+  padding: 4px;
+  color: var(--wpi-color-text-secondary);
+  border-radius: var(--wpi-radius);
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: color 0.1s;
   text-decoration: none;
+  min-width: 28px;
+  min-height: 28px;
 }
 
 .wpi-chat-drawer__header button:hover,
 .wpi-chat-drawer__header a:hover {
-  color: #1a1a1a;
-  background: #eee;
+  color: var(--wpi-color-primary);
+}
+
+.wpi-chat-drawer__header button:focus-visible,
+.wpi-chat-drawer__header a:focus-visible {
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-drawer__header .dashicons {
@@ -105,12 +136,13 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background: var(--wpi-color-surface-tertiary);
 }
 
 .wpi-chat-drawer__messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 16px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -119,9 +151,9 @@
 
 /* Drawer Footer */
 .wpi-chat-drawer__footer {
-  padding: 12px 16px 16px;
-  border-top: 1px solid #eee;
-  background: #fff;
+  padding: 12px 16px;
+  border-top: 1px solid var(--wpi-color-border);
+  background: var(--wpi-color-surface);
   flex-shrink: 0;
 }
 
@@ -129,16 +161,16 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  background: #f7f7f8;
-  border: 1px solid #e5e5e5;
-  border-radius: 12px;
-  padding: 6px 6px 6px 14px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: var(--wpi-color-surface);
+  border: 1px solid #949494;
+  border-radius: var(--wpi-radius);
+  padding: 4px 4px 4px 12px;
+  transition: border-color 0.1s, box-shadow 0.1s;
 }
 
 .wpi-chat-drawer__input-wrap:focus-within {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.08);
+  border-color: var(--wpi-color-primary);
+  box-shadow: 0 0 0 1px var(--wpi-color-primary);
 }
 
 .wpi-chat-drawer__input {
@@ -147,44 +179,49 @@
   border: none;
   background: transparent;
   padding: 8px 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--wpi-font);
   max-height: 150px;
   outline: none;
-  color: #1a1a1a;
+  color: var(--wpi-color-text);
 }
 
 .wpi-chat-drawer__input::placeholder {
-  color: #999;
+  color: var(--wpi-color-text-secondary);
 }
 
 .wpi-chat-drawer__send-btn {
-  background: #1a1a1a;
+  background: var(--wpi-color-primary);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  width: 34px;
-  height: 34px;
+  border-radius: var(--wpi-radius);
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: background 0.1s;
 }
 
 .wpi-chat-drawer__send-btn:hover:not(:disabled) {
-  background: #333;
+  background: var(--wpi-color-primary-darker);
+}
+
+.wpi-chat-drawer__send-btn:focus-visible {
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-drawer__send-btn:disabled {
-  opacity: 0.25;
+  opacity: 0.3;
   cursor: default;
 }
 
 /* ═══════════════════════════════════════════════
- *  Shared Components (used in drawer and page)
+ *  Shared Components (drawer + page)
  * ═══════════════════════════════════════════════ */
 
 /* Empty state */
@@ -211,37 +248,50 @@
 }
 
 .wpi-chat-empty__icon {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--wpi-color-surface-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wpi-chat-empty__icon .dashicons {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  color: var(--wpi-color-primary);
 }
 
 .wpi-chat-empty__title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--wpi-color-text);
   margin: 0 0 8px;
-  letter-spacing: -0.02em;
 }
 
 .wpi-chat-empty__desc {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
-  color: #666;
+  color: var(--wpi-color-text-secondary);
   margin: 0 0 24px;
-  max-width: 300px;
+  max-width: 280px;
 }
 
 .wpi-chat-empty p {
   font-size: 13px;
   line-height: 1.5;
-  color: #666;
+  color: var(--wpi-color-text-secondary);
 }
 
-/* Suggestion chips */
+/* Suggestion chips – card style matching WP panels */
 .wpi-chat-suggestions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  max-width: 360px;
+  max-width: 340px;
   width: 100%;
 }
 
@@ -249,33 +299,42 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid #e5e5e5;
-  border-radius: 10px;
-  background: #fff;
+  padding: 10px 12px;
+  border: 1px solid var(--wpi-color-border);
+  border-radius: var(--wpi-radius);
+  background: var(--wpi-color-surface);
   cursor: pointer;
   text-align: left;
-  font-size: 13px;
-  color: #333;
-  line-height: 1.3;
-  transition: all 0.15s ease;
+  font-size: 12px;
+  font-family: var(--wpi-font);
+  color: var(--wpi-color-text);
+  line-height: 1.4;
+  transition: border-color 0.1s, color 0.1s;
 }
 
 .wpi-chat-suggestion:hover {
-  border-color: #ccc;
-  background: #f7f7f8;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-color: var(--wpi-color-primary);
+  color: var(--wpi-color-primary);
+}
+
+.wpi-chat-suggestion:focus-visible {
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-suggestion .dashicons {
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: #888;
+  color: var(--wpi-color-text-secondary);
   flex-shrink: 0;
 }
 
-/* Loading */
+.wpi-chat-suggestion:hover .dashicons {
+  color: var(--wpi-color-primary);
+}
+
+/* Loading – WP spinner style */
 .wpi-chat-loading {
   display: flex;
   align-items: center;
@@ -284,12 +343,12 @@
 }
 
 .wpi-chat-loading__spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid #eee;
-  border-top-color: #1a1a1a;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--wpi-color-border);
+  border-top-color: var(--wpi-color-primary);
   border-radius: 50%;
-  animation: wpi-spin 0.7s linear infinite;
+  animation: wpi-spin 0.8s linear infinite;
 }
 
 @keyframes wpi-spin {
@@ -301,11 +360,11 @@
   display: flex;
   gap: 10px;
   max-width: 90%;
-  animation: wpi-msg-in 0.2s ease-out;
+  animation: wpi-msg-in 0.15s ease-out;
 }
 
 @keyframes wpi-msg-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -329,9 +388,20 @@
   margin-top: 2px;
 }
 
+.wpi-chat-msg__avatar--ai {
+  background: var(--wpi-color-primary);
+  color: #fff;
+}
+
+.wpi-chat-msg__avatar--ai .dashicons {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
 .wpi-chat-msg__avatar--user {
-  background: #e8e8e8;
-  color: #555;
+  background: var(--wpi-color-surface-secondary);
+  color: var(--wpi-color-text-secondary);
 }
 
 .wpi-chat-msg__avatar--user .dashicons {
@@ -352,22 +422,22 @@
 
 .wpi-chat-msg__bubble {
   padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 14px;
+  border-radius: var(--wpi-radius-lg);
+  font-size: 13px;
   line-height: 1.6;
   word-break: break-word;
+  font-family: var(--wpi-font);
 }
 
 .wpi-chat-msg--user .wpi-chat-msg__bubble {
-  background: #1a1a1a;
+  background: var(--wpi-color-primary);
   color: #fff;
-  border-bottom-right-radius: 4px;
 }
 
 .wpi-chat-msg--assistant .wpi-chat-msg__bubble {
-  background: #f0f0f1;
-  color: #1a1a1a;
-  border-bottom-left-radius: 4px;
+  background: var(--wpi-color-surface);
+  color: var(--wpi-color-text);
+  border: 1px solid var(--wpi-color-border);
 }
 
 .wpi-chat-msg__bubble strong {
@@ -375,27 +445,31 @@
 }
 
 .wpi-chat-msg__bubble code {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.07);
   padding: 2px 5px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-family: 'SF Mono', SFMono-Regular, Consolas, monospace;
+  border-radius: var(--wpi-radius);
+  font-size: 12px;
+  font-family: var(--wpi-mono);
 }
 
 .wpi-chat-msg--user .wpi-chat-msg__bubble code {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .wpi-chat-msg__bubble a {
-  color: inherit;
+  color: var(--wpi-color-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.wpi-chat-msg--user .wpi-chat-msg__bubble a {
+  color: #fff;
 }
 
 .wpi-chat-msg__bubble h3,
 .wpi-chat-msg__bubble h4 {
   margin: 8px 0 4px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -414,21 +488,22 @@
   margin-bottom: 3px;
 }
 
+/* Code blocks */
 .wpi-chat-code-block {
-  background: #1a1a2e;
-  color: #e4e4e7;
+  background: #2f3033;
+  color: #e0e0e0;
   padding: 12px 14px;
-  border-radius: 8px;
+  border-radius: var(--wpi-radius);
   overflow-x: auto;
   margin: 8px 0;
   font-size: 12px;
   line-height: 1.5;
-  font-family: 'SF Mono', SFMono-Regular, Consolas, monospace;
+  font-family: var(--wpi-mono);
 }
 
 .wpi-chat-msg__time {
   font-size: 11px;
-  color: #999;
+  color: var(--wpi-color-text-secondary);
   margin-top: 3px;
   padding: 0 4px;
 }
@@ -441,10 +516,10 @@
 }
 
 .wpi-chat-typing span {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #888;
+  background: var(--wpi-color-text-secondary);
   animation: wpi-typing 1.2s ease-in-out infinite;
 }
 
@@ -457,7 +532,7 @@
 }
 
 @keyframes wpi-typing {
-  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.85); }
   30% { opacity: 1; transform: scale(1); }
 }
 
@@ -472,7 +547,7 @@
 .wpi-chat-history {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .wpi-chat-history-item {
@@ -480,13 +555,13 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--wpi-radius);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.1s;
 }
 
 .wpi-chat-history-item:hover {
-  background: #f0f0f1;
+  background: var(--wpi-color-surface-secondary);
 }
 
 .wpi-chat-history-item__main {
@@ -497,11 +572,11 @@
 .wpi-chat-history-item__title {
   font-size: 13px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--wpi-color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.4;
 }
 
 .wpi-chat-history-item__meta {
@@ -509,7 +584,7 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #888;
+  color: var(--wpi-color-text-secondary);
   margin-top: 2px;
 }
 
@@ -517,7 +592,7 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: #ccc;
+  background: var(--wpi-color-border);
 }
 
 .wpi-chat-history-item__delete {
@@ -525,10 +600,10 @@
   border: none;
   cursor: pointer;
   padding: 4px;
-  color: #ccc;
-  border-radius: 4px;
+  color: var(--wpi-color-border);
+  border-radius: var(--wpi-radius);
   opacity: 0;
-  transition: all 0.15s ease;
+  transition: opacity 0.1s, color 0.1s;
 }
 
 .wpi-chat-history-item:hover .wpi-chat-history-item__delete {
@@ -536,8 +611,13 @@
 }
 
 .wpi-chat-history-item__delete:hover {
-  color: #d63638;
-  background: #fde8e8;
+  color: var(--wpi-color-error);
+}
+
+.wpi-chat-history-item__delete:focus-visible {
+  opacity: 1;
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-history-item__delete .dashicons {
@@ -578,19 +658,19 @@
 .wpi-chat-page {
   display: flex;
   min-height: calc(100vh - 32px);
-  background: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--wpi-color-surface-tertiary);
+  font-family: var(--wpi-font);
 }
 
-/* Page Sidebar */
+/* Page Sidebar – matches Gutenberg sidebar surface */
 .wpi-chat-page__sidebar {
   width: 260px;
-  background: #f7f7f8;
-  border-right: 1px solid #e5e5e5;
+  background: var(--wpi-color-surface);
+  border-right: 1px solid var(--wpi-color-border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: margin-left 0.25s ease, opacity 0.25s ease;
+  transition: margin-left 0.2s ease, opacity 0.2s ease;
 }
 
 .wpi-chat-page--sidebar-collapsed .wpi-chat-page__sidebar {
@@ -600,29 +680,38 @@
 }
 
 .wpi-chat-page__sidebar-header {
-  padding: 16px;
-  border-bottom: 1px solid #e5e5e5;
+  padding: 12px;
+  border-bottom: 1px solid var(--wpi-color-border);
 }
 
+/* New chat button – styled like WP secondary button */
 .wpi-chat-page__new-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fff;
+  padding: 6px 12px;
+  border: 1px solid var(--wpi-color-primary);
+  border-radius: var(--wpi-radius);
+  background: transparent;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
-  color: #1a1a1a;
-  transition: all 0.15s ease;
+  font-weight: 400;
+  font-family: var(--wpi-font);
+  color: var(--wpi-color-primary);
+  height: 36px;
+  box-sizing: border-box;
+  transition: background 0.1s, color 0.1s;
 }
 
 .wpi-chat-page__new-btn:hover {
-  background: #f0f0f1;
-  border-color: #ccc;
+  background: var(--wpi-color-primary);
+  color: #fff;
+}
+
+.wpi-chat-page__new-btn:focus-visible {
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-page__new-btn .dashicons {
@@ -644,31 +733,40 @@
   min-width: 0;
 }
 
+/* Page Header – matches Gutenberg panel header height */
 .wpi-chat-page__header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 1px solid #eee;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--wpi-color-border);
+  background: var(--wpi-color-surface);
   flex-shrink: 0;
+  min-height: 48px;
 }
 
 .wpi-chat-page__sidebar-toggle {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
-  color: #666;
+  padding: 4px;
+  border-radius: var(--wpi-radius);
+  color: var(--wpi-color-text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  min-width: 28px;
+  min-height: 28px;
+  transition: color 0.1s;
 }
 
 .wpi-chat-page__sidebar-toggle:hover {
-  background: #eee;
-  color: #1a1a1a;
+  color: var(--wpi-color-primary);
+}
+
+.wpi-chat-page__sidebar-toggle:focus-visible {
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-page__sidebar-toggle .dashicons {
@@ -678,10 +776,11 @@
 }
 
 .wpi-chat-page__title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
-  letter-spacing: -0.01em;
+  color: var(--wpi-color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* Page Messages */
@@ -692,7 +791,7 @@
   flex-direction: column;
   gap: 16px;
   padding: 24px;
-  max-width: 800px;
+  max-width: 768px;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -701,9 +800,9 @@
 
 /* Page Footer */
 .wpi-chat-page__footer {
-  padding: 12px 24px 20px;
+  padding: 12px 24px 16px;
   flex-shrink: 0;
-  max-width: 800px;
+  max-width: 768px;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -713,16 +812,16 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  background: #f7f7f8;
-  border: 1px solid #e5e5e5;
-  border-radius: 16px;
-  padding: 8px 8px 8px 18px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: var(--wpi-color-surface);
+  border: 1px solid #949494;
+  border-radius: var(--wpi-radius);
+  padding: 4px 4px 4px 14px;
+  transition: border-color 0.1s, box-shadow 0.1s;
 }
 
 .wpi-chat-page__input-wrap:focus-within {
-  border-color: #1a1a1a;
-  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
+  border-color: var(--wpi-color-primary);
+  box-shadow: 0 0 0 1px var(--wpi-color-primary);
 }
 
 .wpi-chat-page__input {
@@ -731,51 +830,57 @@
   border: none;
   background: transparent;
   padding: 8px 0;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--wpi-font);
   max-height: 150px;
   outline: none;
-  color: #1a1a1a;
+  color: var(--wpi-color-text);
 }
 
 .wpi-chat-page__input::placeholder {
-  color: #999;
+  color: var(--wpi-color-text-secondary);
 }
 
+/* Send button – WP primary button style */
 .wpi-chat-page__send-btn {
-  background: #1a1a1a;
+  background: var(--wpi-color-primary);
   color: #fff;
   border: none;
-  border-radius: 10px;
-  width: 38px;
-  height: 38px;
+  border-radius: var(--wpi-radius);
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: background 0.1s;
 }
 
 .wpi-chat-page__send-btn:hover:not(:disabled) {
-  background: #333;
+  background: var(--wpi-color-primary-darker);
+}
+
+.wpi-chat-page__send-btn:focus-visible {
+  box-shadow: 0 0 0 var(--wp-admin-border-width-focus, 2px) var(--wpi-color-primary);
+  outline: none;
 }
 
 .wpi-chat-page__send-btn:disabled {
-  opacity: 0.25;
+  opacity: 0.3;
   cursor: default;
 }
 
 .wpi-chat-page__disclaimer {
   text-align: center;
   font-size: 11px;
-  color: #aaa;
+  color: var(--wpi-color-text-secondary);
   margin: 8px 0 0;
 }
 
 /* ═══════════════════════════════════════════════
- *  Responsive overrides
+ *  Responsive
  * ═══════════════════════════════════════════════ */
 
 @media (max-width: 960px) {
@@ -785,7 +890,7 @@
     top: 32px;
     bottom: 0;
     z-index: 1000;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
   }
 
   .wpi-chat-page--sidebar-collapsed .wpi-chat-page__sidebar {
@@ -822,7 +927,7 @@
   }
 }
 
-/* WordPress admin bar offset for logged-in frontend */
+/* Admin bar offset */
 @media (max-width: 782px) {
   .admin-bar .wpi-chat-drawer__panel {
     top: 46px;

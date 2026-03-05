@@ -121,10 +121,7 @@
     return (
       '<div class="wpi-chat-empty">' +
         '<div class="wpi-chat-empty__icon">' +
-          '<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">' +
-            '<rect width="48" height="48" rx="24" fill="#f0f0f0"/>' +
-            '<path d="M24 14C18.48 14 14 17.58 14 22c0 2.4 1.36 4.54 3.5 6.02L16 34l5.1-2.55C22.04 31.8 23 32 24 32c5.52 0 10-3.58 10-8s-4.48-8-10-8z" fill="#1e1e1e"/>' +
-          '</svg>' +
+          '<span class="dashicons dashicons-format-chat"></span>' +
         '</div>' +
         '<h3 class="wpi-chat-empty__title">' + __('How can I help you?', 'wp-intelligence') + '</h3>' +
         '<p class="wpi-chat-empty__desc">' + __('Ask me anything about your site, content, or WordPress.', 'wp-intelligence') + '</p>' +
@@ -136,12 +133,14 @@
   function buildTypingIndicator() {
     return (
       '<div class="wpi-chat-msg wpi-chat-msg--assistant wpi-chat-msg--typing">' +
-        '<div class="wpi-chat-msg__avatar">' +
-          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#1e1e1e"/><path d="M12 7c-2.76 0-5 1.79-5 4s2.24 4 5 4c.5 0 .98-.1 1.45-.26L16 16l-.75-2.27C16.35 12.73 17 11.43 17 10c0-2.21-2.24-4-5-4z" fill="#fff"/></svg>' +
+        '<div class="wpi-chat-msg__avatar wpi-chat-msg__avatar--ai">' +
+          '<span class="dashicons dashicons-lightbulb"></span>' +
         '</div>' +
-        '<div class="wpi-chat-msg__bubble">' +
-          '<div class="wpi-chat-typing">' +
-            '<span></span><span></span><span></span>' +
+        '<div class="wpi-chat-msg__content">' +
+          '<div class="wpi-chat-msg__bubble">' +
+            '<div class="wpi-chat-typing">' +
+              '<span></span><span></span><span></span>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>'
@@ -155,7 +154,7 @@
 
     var avatar = isUser
       ? '<div class="wpi-chat-msg__avatar wpi-chat-msg__avatar--user"><span class="dashicons dashicons-admin-users"></span></div>'
-      : '<div class="wpi-chat-msg__avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="12" fill="#1e1e1e"/><path d="M12 7c-2.76 0-5 1.79-5 4s2.24 4 5 4c.5 0 .98-.1 1.45-.26L16 16l-.75-2.27C16.35 12.73 17 11.43 17 10c0-2.21-2.24-4-5-4z" fill="#fff"/></svg></div>';
+      : '<div class="wpi-chat-msg__avatar wpi-chat-msg__avatar--ai"><span class="dashicons dashicons-lightbulb"></span></div>';
 
     return (
       '<div class="wpi-chat-msg ' + cls + '">' +
