@@ -71,13 +71,13 @@ class WPI_Chat_Storage {
     $table = self::get_table_name();
 
     return $wpdb->get_results($wpdb->prepare(
-      "SELECT conversation_id,
-              MIN(CASE WHEN role = 'user' THEN content END) AS title,
-              MAX(created_at) AS last_message_at,
+      "SELECT t.conversation_id,
+              (SELECT sub.content FROM {$table} sub WHERE sub.conversation_id = t.conversation_id AND sub.user_id = t.user_id AND sub.role = 'user' ORDER BY sub.created_at ASC LIMIT 1) AS title,
+              MAX(t.created_at) AS last_message_at,
               COUNT(*) AS message_count
-       FROM {$table}
-       WHERE user_id = %d
-       GROUP BY conversation_id
+       FROM {$table} t
+       WHERE t.user_id = %d
+       GROUP BY t.conversation_id
        ORDER BY last_message_at DESC
        LIMIT %d",
       $user_id,

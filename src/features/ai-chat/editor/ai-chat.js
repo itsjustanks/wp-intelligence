@@ -230,14 +230,14 @@
         state.messages = state.messages.filter(function (m) { return !m._pending; });
         state.messages.push({ role: 'assistant', content: res.message, created_at: new Date().toISOString().replace('Z', '') });
         renderMessages();
-        sendBtn.disabled = false;
+        sendBtn.disabled = !input.value.trim();
       })
       .catch(function (err) {
         state.loading = false;
         state.messages = state.messages.filter(function (m) { return !m._pending; });
         state.messages.push({ role: 'assistant', content: __('Error: ', 'wp-intelligence') + ((err && err.message) || __('Something went wrong.', 'wp-intelligence')) });
         renderMessages();
-        sendBtn.disabled = false;
+        sendBtn.disabled = !input.value.trim();
       });
   }
 
