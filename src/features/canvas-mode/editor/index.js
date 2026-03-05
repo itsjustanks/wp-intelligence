@@ -65,12 +65,23 @@ function stopSaveWatcher() {
 	_saveWatcher = null;
 }
 
-function pushContentToFrames() {
+function getCleanContent() {
+	try {
+		const content = window.wp?.data?.select?.( 'core/editor' )
+			?.getEditedPostContent?.();
+		if ( content ) {
+			return content;
+		}
+	} catch ( e ) {} // eslint-disable-line no-empty
 	const wrapper = getEditorStylesWrapper();
-	if ( ! wrapper ) {
+	return wrapper ? wrapper.innerHTML : '';
+}
+
+function pushContentToFrames() {
+	const html = getCleanContent();
+	if ( ! html ) {
 		return;
 	}
-	const html = wrapper.innerHTML;
 	const msg = { type: 'wpi-content', html };
 
 	refs.mirrorFrames.forEach( ( item ) => {
@@ -88,11 +99,17 @@ function pushContentToFrames() {
 
 function startContentPush() {
 	stopContentPush();
-	const wrapper = getEditorStylesWrapper();
-	if ( ! wrapper ) {
+	const editorDoc = getEditorDoc();
+	const wrapper = getEditorStylesWrapper( editorDoc );
+	if ( ! wrapper || ! editorDoc ) {
+		setTimeout( startContentPush, 500 );
 		return;
 	}
-	refs.contentPushObserver = new MutationObserver( () => {
+
+	const IframeMutationObserver =
+		editorDoc.defaultView?.MutationObserver || MutationObserver;
+
+	refs.contentPushObserver = new IframeMutationObserver( () => {
 		clearTimeout( refs.contentPushTimer );
 		refs.contentPushTimer = setTimeout( pushContentToFrames, 300 );
 
@@ -105,6 +122,8 @@ function startContentPush() {
 		characterData: true,
 		attributes: true,
 	} );
+
+	setTimeout( pushContentToFrames, 600 );
 }
 
 function stopContentPush() {

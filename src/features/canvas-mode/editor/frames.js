@@ -18,14 +18,44 @@ function injectContentListener( doc ) {
 	if ( ! doc?.body ) {
 		return;
 	}
-	const sel = getContentSelector();
+	const primary = getContentSelector();
+	const fallbacks = [
+		'.entry-content', '.post-content', '.content-inner',
+		'article .entry', '.type-page .content', 'main article',
+	];
+	const selectors = [ primary ];
+	fallbacks.forEach( function( s ) {
+		if ( selectors.indexOf( s ) === -1 ) {
+			selectors.push( s );
+		}
+	} );
+
 	const script = doc.createElement( 'script' );
 	script.textContent =
+		'(function(){' +
+		'var sels=' + JSON.stringify( selectors ) + ';' +
+		'function findTarget(){' +
+		'for(var i=0;i<sels.length;i++){' +
+		'var el=document.querySelector(sels[i]);' +
+		'if(el)return el;}return null;}' +
 		'window.addEventListener("message",function(e){' +
 		'if(!e.data||e.data.type!=="wpi-content")return;' +
-		'var el=document.querySelector(' + JSON.stringify( sel ) + ');' +
-		'if(el)el.innerHTML=e.data.html;});';
+		'var t=findTarget();if(t)t.innerHTML=e.data.html;});' +
+		'})();';
 	doc.body.appendChild( script );
+}
+
+function findContentArea( doc ) {
+	const primary = getContentSelector();
+	const selectors = [ primary, '.entry-content', '.post-content',
+		'.content-inner', 'article .entry', '.type-page .content' ];
+	for ( let i = 0; i < selectors.length; i++ ) {
+		const el = doc.querySelector( selectors[ i ] );
+		if ( el ) {
+			return el;
+		}
+	}
+	return null;
 }
 
 function getPreviewUrl() {
@@ -236,8 +266,7 @@ function setupBackdrop( viewport, vp ) {
 
 			injectContentListener( doc );
 
-			const sel = getContentSelector();
-			const contentArea = doc.querySelector( sel );
+			const contentArea = findContentArea( doc );
 			if ( ! contentArea ) {
 				return;
 			}
@@ -283,8 +312,7 @@ function syncBackdropContentHeight() {
 		if ( ! doc ) {
 			return;
 		}
-		const sel = getContentSelector();
-		const contentArea = doc.querySelector( sel );
+		const contentArea = findContentArea( doc );
 		if ( ! contentArea ) {
 			return;
 		}
