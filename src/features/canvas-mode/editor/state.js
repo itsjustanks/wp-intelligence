@@ -59,6 +59,7 @@ export const refs = {
 	topSpacerEl: null,
 	bottomSpacerEl: null,
 	contentPushObserver: null,
+	contentPushRetryTimer: null,
 	contentPushTimer: null,
 	autosaveTimer: null,
 };

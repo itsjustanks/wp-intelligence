@@ -102,7 +102,7 @@ function startContentPush() {
 	const editorDoc = getEditorDoc();
 	const wrapper = getEditorStylesWrapper( editorDoc );
 	if ( ! wrapper || ! editorDoc ) {
-		setTimeout( startContentPush, 500 );
+		refs.contentPushRetryTimer = setTimeout( startContentPush, 500 );
 		return;
 	}
 
@@ -127,6 +127,8 @@ function startContentPush() {
 }
 
 function stopContentPush() {
+	clearTimeout( refs.contentPushRetryTimer );
+	refs.contentPushRetryTimer = null;
 	if ( refs.contentPushObserver ) {
 		refs.contentPushObserver.disconnect();
 		refs.contentPushObserver = null;

@@ -48,7 +48,8 @@ function injectContentListener( doc ) {
 function findContentArea( doc ) {
 	const primary = getContentSelector();
 	const selectors = [ primary, '.entry-content', '.post-content',
-		'.content-inner', 'article .entry', '.type-page .content' ];
+		'.content-inner', 'article .entry', '.type-page .content',
+		'main article' ];
 	for ( let i = 0; i < selectors.length; i++ ) {
 		const el = doc.querySelector( selectors[ i ] );
 		if ( el ) {
