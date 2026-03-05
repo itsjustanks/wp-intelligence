@@ -148,8 +148,17 @@ class AI_Composer_Context_Provider {
    * Flush all cached context.
    */
   public static function flush_cache(): void {
-    global $wpdb;
+    $option  = self::TRANSIENT_PREFIX . 'tracked_keys';
+    $tracked = get_option($option, []);
 
+    foreach ($tracked as $key) {
+      delete_transient(self::TRANSIENT_PREFIX . $key);
+    }
+    delete_option($option);
+
+    delete_transient(self::TRANSIENT_PREFIX . 'failure');
+
+    global $wpdb;
     $wpdb->query(
       $wpdb->prepare(
         "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
@@ -308,5 +317,15 @@ class AI_Composer_Context_Provider {
       : 3600;
 
     set_transient(self::TRANSIENT_PREFIX . $key, $value, $ttl);
+    self::track_cache_key($key);
+  }
+
+  private static function track_cache_key(string $key): void {
+    $option = self::TRANSIENT_PREFIX . 'tracked_keys';
+    $tracked = get_option($option, []);
+    if (! in_array($key, $tracked, true)) {
+      $tracked[] = $key;
+      update_option($option, $tracked, false);
+    }
   }
 }

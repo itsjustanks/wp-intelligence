@@ -170,8 +170,12 @@ class AI_Composer_MCP_Client {
       $data = '';
       foreach (explode("\n", $event) as $line) {
         if (str_starts_with($line, 'data: ')) {
-          $data .= substr($line, 6);
+          $data .= substr($line, 6) . "\n";
         }
+      }
+
+      if ($data !== '') {
+        $data = substr($data, 0, -1);
       }
 
       if ($data === '') {

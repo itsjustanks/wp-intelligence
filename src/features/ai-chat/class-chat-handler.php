@@ -113,7 +113,11 @@ PROMPT;
 
       $site_context = AI_Composer_Context_Provider::get_context();
       if ($site_context !== '' && $site_context !== $brand_voice) {
-        $prompt .= "\n\n" . $site_context;
+        $after_label = static fn( string $s ): string =>
+          ( $p = strpos( $s, "\n" ) ) !== false ? substr( $s, $p + 1 ) : $s;
+        if ( $brand_voice === '' || $after_label( $site_context ) !== $after_label( $brand_voice ) ) {
+          $prompt .= "\n\n" . $site_context;
+        }
       }
     } else {
       $settings = class_exists('AI_Composer_Settings') ? AI_Composer_Settings::get_syndication_settings() : [];
