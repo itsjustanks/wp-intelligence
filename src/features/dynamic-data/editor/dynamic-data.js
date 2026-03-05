@@ -21,8 +21,47 @@
   var Icon = wp.components.Icon;
   var __ = wp.i18n.__;
   var RichTextToolbarButton = wp.blockEditor.RichTextToolbarButton;
+  var addFilter = wp.hooks.addFilter;
 
   var config = window.wpiDynamicDataConfig || { sources: [], tags: [] };
+
+  /* ──────────────────────────────────────────────
+   *  {{ autocomplete completer for rich text blocks
+   * ────────────────────────────────────────────── */
+
+  addFilter(
+    'editor.Autocomplete.completers',
+    'wpi/merge-tag-completer',
+    function (completers) {
+      var tags = config.tags || [];
+      completers.push({
+        name: 'wpi-merge-tags',
+        triggerPrefix: '{{',
+        options: tags.map(function (t) {
+          return {
+            tag: t.tag,
+            label: t.label || t.tag,
+            group: t.group || '',
+          };
+        }),
+        getOptionLabel: function (option) {
+          return el(
+            'span',
+            { className: 'wpi-autocomplete-option' },
+            el('code', null, '{{' + option.tag + '}}'),
+            el('span', { style: { marginLeft: '8px', opacity: 0.7, fontSize: '12px' } }, option.label)
+          );
+        },
+        getOptionKeywords: function (option) {
+          return [option.tag, option.label, option.group];
+        },
+        getOptionCompletion: function (option) {
+          return '{{' + option.tag + '}}';
+        },
+      });
+      return completers;
+    }
+  );
 
   /* ──────────────────────────────────────────────
    *  Merge Tag Picker Modal
