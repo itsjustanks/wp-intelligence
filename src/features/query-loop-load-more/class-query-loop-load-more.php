@@ -19,7 +19,11 @@ class WPI_Query_Loop_Load_More {
     self::$mod_dir = __DIR__;
     self::$mod_url = WPI_URL . 'src/features/query-loop-load-more/';
 
-    add_filter('register_block_type_args', [self::class, 'register_attributes'], 10, 2);
+    // Core blocks register at init:10; module manager boots at init:20.
+    // The block is already registered, so modify it directly instead of
+    // relying on the register_block_type_args filter (which already fired).
+    self::extend_pagination_block();
+
     add_action('enqueue_block_editor_assets', [self::class, 'enqueue_editor_assets']);
     add_action('wp_enqueue_scripts', [self::class, 'register_frontend_assets']);
     add_filter('render_block_core/query', [self::class, 'tag_query_region'], 20);
@@ -27,39 +31,51 @@ class WPI_Query_Loop_Load_More {
 
   /**
    * Extend core/query-pagination with load-more attributes, render callback,
-   * and conditional asset handles.
+   * and conditional asset handles by modifying the registered block type
+   * directly (since it's already registered by the time modules boot).
    */
-  public static function register_attributes(array $settings, string $name): array {
-    if ('core/query-pagination' !== $name || ! function_exists('render_block_core_query_pagination')) {
+  private static function extend_pagination_block(): void {
+    if (! function_exists('render_block_core_query_pagination')) {
+      return;
+    }
+
+    $block_type = WP_Block_Type_Registry::get_instance()->get_registered('core/query-pagination');
+
+    if (! $block_type) {
+      // Shouldn't happen at init:20, but fall back to filter just in case.
+      add_filter('register_block_type_args', [self::class, 'register_attributes_filter'], 10, 2);
+      return;
+    }
+
+    $block_type->render_callback = [self::class, 'render'];
+
+    $block_type->attributes['loadMore']             = ['type' => 'boolean', 'default' => false];
+    $block_type->attributes['infiniteScroll']        = ['type' => 'boolean', 'default' => false];
+    $block_type->attributes['infiniteScrollColor']   = ['type' => 'string',  'default' => '#000'];
+    $block_type->attributes['loadMoreText']          = ['type' => 'string',  'default' => __('Load More', 'wp-intelligence')];
+    $block_type->attributes['loadingText']           = ['type' => 'string',  'default' => __('Loading...', 'wp-intelligence')];
+    $block_type->attributes['updateUrl']             = ['type' => 'boolean', 'default' => false];
+
+    $block_type->style_handles[]  = 'wpi-load-more';
+    $block_type->script_handles[] = 'wpi-load-more';
+  }
+
+  /**
+   * Fallback filter for the unlikely case the block isn't registered yet.
+   */
+  public static function register_attributes_filter(array $settings, string $name): array {
+    if ('core/query-pagination' !== $name) {
       return $settings;
     }
 
     $settings['render_callback'] = [self::class, 'render'];
 
-    $settings['attributes']['loadMore'] = [
-      'type'    => 'boolean',
-      'default' => false,
-    ];
-    $settings['attributes']['infiniteScroll'] = [
-      'type'    => 'boolean',
-      'default' => false,
-    ];
-    $settings['attributes']['infiniteScrollColor'] = [
-      'type'    => 'string',
-      'default' => '#000',
-    ];
-    $settings['attributes']['loadMoreText'] = [
-      'type'    => 'string',
-      'default' => __('Load More', 'wp-intelligence'),
-    ];
-    $settings['attributes']['loadingText'] = [
-      'type'    => 'string',
-      'default' => __('Loading...', 'wp-intelligence'),
-    ];
-    $settings['attributes']['updateUrl'] = [
-      'type'    => 'boolean',
-      'default' => false,
-    ];
+    $settings['attributes']['loadMore']             = ['type' => 'boolean', 'default' => false];
+    $settings['attributes']['infiniteScroll']        = ['type' => 'boolean', 'default' => false];
+    $settings['attributes']['infiniteScrollColor']   = ['type' => 'string',  'default' => '#000'];
+    $settings['attributes']['loadMoreText']          = ['type' => 'string',  'default' => __('Load More', 'wp-intelligence')];
+    $settings['attributes']['loadingText']           = ['type' => 'string',  'default' => __('Loading...', 'wp-intelligence')];
+    $settings['attributes']['updateUrl']             = ['type' => 'boolean', 'default' => false];
 
     $settings['style_handles'][]  = 'wpi-load-more';
     $settings['script_handles'][] = 'wpi-load-more';
@@ -114,8 +130,9 @@ class WPI_Query_Loop_Load_More {
       ? 'wp-load-more__button wp-load-more__infinite-scroll'
       : 'wp-block-button__link wp-element-button wp-load-more__button';
 
-    $pagination_arrow = ('none' !== $attributes['paginationArrow'])
-      ? '<span class="wp-block-query-pagination__arrow">' . esc_html($arrow_map[$attributes['paginationArrow']] ?? '') . '</span>'
+    $arrow_key        = $attributes['paginationArrow'] ?? 'none';
+    $pagination_arrow = ('none' !== $arrow_key)
+      ? '<span class="wp-block-query-pagination__arrow">' . esc_html($arrow_map[$arrow_key] ?? '') . '</span>'
       : '';
 
     $infinite_markup = '';

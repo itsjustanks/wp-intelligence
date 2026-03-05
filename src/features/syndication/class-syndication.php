@@ -67,11 +67,22 @@ class AI_Composer_Syndication {
       true
     );
 
+    $css_path = __DIR__ . '/editor/syndication.css';
+    $css_url  = defined('WPI_URL') ? WPI_URL . 'src/features/syndication/editor/syndication.css' : '';
+    if ($css_url !== '' && file_exists($css_path)) {
+      wp_enqueue_style(
+        'wpi-syndication',
+        $css_url,
+        ['wp-components'],
+        (string) filemtime($css_path)
+      );
+    }
+
     wp_localize_script('wpi-syndication', 'wpiSyndicationConfig', [
       'restNamespace'    => 'ai-composer/v1',
       'nonce'            => wp_create_nonce('wp_rest'),
       'enabledPostTypes' => $this->get_enabled_post_types(),
-      'fetchStrategy'    => $this->get_fetch_strategy(),
+      'hasFirecrawl'     => $this->get_firecrawl_key() !== '',
     ]);
   }
 
@@ -83,11 +94,23 @@ class AI_Composer_Syndication {
         return current_user_can(apply_filters('ai_composer_capability', 'edit_posts'));
       },
       'args' => [
-        'url'     => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'esc_url_raw'],
-        'prompt'  => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_text_field'],
-        'post_id' => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
-        // Backward-compatible alias for older editor payloads.
-        'postId'  => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
+        'url'        => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'esc_url_raw'],
+        'prompt'     => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_text_field'],
+        'post_id'    => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
+        'postId'     => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
+        'word_count' => ['type' => 'integer', 'default' => 600, 'sanitize_callback' => 'absint'],
+      ],
+    ]);
+
+    register_rest_route('ai-composer/v1', '/syndicate/test', [
+      'methods'             => 'GET',
+      'callback'            => [$this, 'handle_test_request'],
+      'permission_callback' => function () {
+        return current_user_can('manage_options');
+      },
+      'args' => [
+        'url'  => ['required' => true, 'type' => 'string', 'sanitize_callback' => 'esc_url_raw'],
+        'step' => ['type' => 'string', 'default' => 'all', 'sanitize_callback' => 'sanitize_key'],
       ],
     ]);
   }
@@ -102,10 +125,14 @@ class AI_Composer_Syndication {
       $post_id = absint($request->get_param('postId'));
     }
 
+    $word_count = absint($request->get_param('word_count'));
+    $word_count = max(200, min(1500, $word_count ?: 600));
+
     $result = $this->syndicate(
       $request->get_param('url'),
       $request->get_param('prompt'),
-      $post_id
+      $post_id,
+      $word_count
     );
 
     if (is_wp_error($result)) {
@@ -113,6 +140,96 @@ class AI_Composer_Syndication {
     }
 
     return new WP_REST_Response($result, 200);
+  }
+
+  /**
+   * Diagnostic endpoint: step through the syndication pipeline and report
+   * what happens at each stage without writing anything.
+   *
+   * GET /ai-composer/v1/syndicate/test?url=...&step=all|builtin|firecrawl|extract|draft
+   */
+  public function handle_test_request(WP_REST_Request $request): WP_REST_Response {
+    $url  = $request->get_param('url');
+    $step = $request->get_param('step') ?: 'all';
+    $start = microtime(true);
+
+    $report = [
+      'url'            => $url,
+      'step'           => $step,
+      'php_max_exec'   => (int) ini_get('max_execution_time'),
+      'firecrawl_key'  => $this->get_firecrawl_key() !== '' ? 'configured (' . substr($this->get_firecrawl_key(), 0, 8) . '...)' : 'not set',
+      'stages'         => [],
+    ];
+
+    $url_check = self::validate_source_url($url);
+    $report['stages']['url_validation'] = is_wp_error($url_check)
+      ? ['ok' => false, 'error' => $url_check->get_error_message()]
+      : ['ok' => true];
+
+    if (is_wp_error($url_check)) {
+      $report['elapsed_ms'] = round((microtime(true) - $start) * 1000);
+      return new WP_REST_Response($report, 200);
+    }
+
+    if ($step === 'all' || $step === 'builtin') {
+      $t = microtime(true);
+      $builtin = $this->fetch_via_builtin($url);
+      $report['stages']['builtin_fetch'] = [
+        'ok'         => ! is_wp_error($builtin),
+        'elapsed_ms' => round((microtime(true) - $t) * 1000),
+      ];
+      if (is_wp_error($builtin)) {
+        $report['stages']['builtin_fetch']['error'] = $builtin->get_error_message();
+      } else {
+        $report['stages']['builtin_fetch']['html_length'] = strlen($builtin);
+      }
+
+      if (! is_wp_error($builtin) && ($step === 'all' || $step === 'extract')) {
+        $t = microtime(true);
+        $article = $this->extract_article($builtin, $url);
+        $report['stages']['builtin_extract'] = [
+          'ok'         => ! is_wp_error($article),
+          'elapsed_ms' => round((microtime(true) - $t) * 1000),
+        ];
+        if (is_wp_error($article)) {
+          $report['stages']['builtin_extract']['error'] = $article->get_error_message();
+        } else {
+          $report['stages']['builtin_extract']['title']      = $article['title'] ?? '';
+          $report['stages']['builtin_extract']['source']     = $article['source_name'] ?? '';
+          $report['stages']['builtin_extract']['pub_date']   = $article['published_date'] ?? '';
+          $report['stages']['builtin_extract']['body_chars'] = strlen($article['body_text'] ?? '');
+          $report['stages']['builtin_extract']['images']     = count($article['images'] ?? []);
+          $report['stages']['builtin_extract']['excerpt']    = substr($article['excerpt'] ?? '', 0, 200);
+        }
+      }
+    }
+
+    if ($step === 'all' || $step === 'firecrawl') {
+      $key = $this->get_firecrawl_key();
+      if ($key === '') {
+        $report['stages']['firecrawl'] = ['ok' => false, 'error' => 'No API key configured'];
+      } else {
+        $t = microtime(true);
+        $fc = $this->fetch_via_firecrawl($url, $key);
+        $report['stages']['firecrawl'] = [
+          'ok'         => ! is_wp_error($fc),
+          'elapsed_ms' => round((microtime(true) - $t) * 1000),
+        ];
+        if (is_wp_error($fc)) {
+          $report['stages']['firecrawl']['error'] = $fc->get_error_message();
+        } else {
+          $report['stages']['firecrawl']['title']      = $fc['title'] ?? '';
+          $report['stages']['firecrawl']['source']     = $fc['source_name'] ?? '';
+          $report['stages']['firecrawl']['pub_date']   = $fc['published_date'] ?? '';
+          $report['stages']['firecrawl']['body_chars'] = strlen($fc['body_text'] ?? '');
+          $report['stages']['firecrawl']['images']     = count($fc['images'] ?? []);
+          $report['stages']['firecrawl']['excerpt']    = substr($fc['excerpt'] ?? '', 0, 200);
+        }
+      }
+    }
+
+    $report['elapsed_ms'] = round((microtime(true) - $start) * 1000);
+    return new WP_REST_Response($report, 200);
   }
 
   /**
@@ -139,7 +256,10 @@ class AI_Composer_Syndication {
    * @param int    $post_id Post ID (0 if unsaved).
    * @return array<string, mixed>|WP_Error
    */
-  public function syndicate(string $url, string $prompt = '', int $post_id = 0): array|WP_Error {
+  public function syndicate(string $url, string $prompt = '', int $post_id = 0, int $word_count = 600): array|WP_Error {
+    $pipeline_start = microtime(true);
+    $log = [];
+
     $url = esc_url_raw($url);
     $url_validation = self::validate_source_url($url);
     if (is_wp_error($url_validation)) {
@@ -148,43 +268,149 @@ class AI_Composer_Syndication {
 
     do_action('ai_composer_before_syndicate', $url, $prompt, $post_id);
 
+    // --- Step 1: Fetch ---
+    $t = microtime(true);
     $fetched = $this->fetch_remote_content($url);
+    $fetch_ms = round((microtime(true) - $t) * 1000);
+
     if (is_wp_error($fetched)) {
-      return $fetched;
+      $log[] = ['step' => 'Fetch', 'status' => 'error', 'detail' => $fetched->get_error_message(), 'ms' => $fetch_ms];
+      return $this->error_with_log($fetched, $log, $pipeline_start);
     }
 
+    // --- Step 2: Extract ---
+    $t = microtime(true);
     if (is_array($fetched)) {
       $article = $fetched;
+      $via = $article['_via'] ?? 'firecrawl';
+      $extract_ms = round((microtime(true) - $t) * 1000);
+      $log[] = ['step' => 'Fetch', 'status' => 'ok', 'detail' => 'via Firecrawl JSON extraction', 'ms' => $fetch_ms];
+      $log[] = ['step' => 'Extract', 'status' => 'ok', 'detail' => sprintf('%s | %s chars | %d images', $article['title'] ?? '', strlen($article['body_text'] ?? ''), count($article['images'] ?? [])), 'ms' => $extract_ms];
     } else {
+      $log[] = ['step' => 'Fetch', 'status' => 'ok', 'detail' => sprintf('Built-in HTTP 200 | %s chars HTML', strlen($fetched)), 'ms' => $fetch_ms];
+
       $article = $this->extract_article($fetched, $url);
+      $extract_ms = round((microtime(true) - $t) * 1000);
+
       if (is_wp_error($article)) {
-        return $article;
+        $log[] = ['step' => 'Extract', 'status' => 'warn', 'detail' => 'Built-in extraction failed: ' . $article->get_error_message(), 'ms' => $extract_ms];
+
+        $firecrawl_key = $this->get_firecrawl_key();
+        if ($firecrawl_key !== '') {
+          $t2 = microtime(true);
+          $firecrawl_result = $this->fetch_via_firecrawl($url, $firecrawl_key);
+          $fc_ms = round((microtime(true) - $t2) * 1000);
+          if (! is_wp_error($firecrawl_result)) {
+            $article = $firecrawl_result;
+            $log[] = ['step' => 'Firecrawl fallback', 'status' => 'ok', 'detail' => sprintf('%s | %s chars | %d images', $article['title'] ?? '', strlen($article['body_text'] ?? ''), count($article['images'] ?? [])), 'ms' => $fc_ms];
+          } else {
+            $log[] = ['step' => 'Firecrawl fallback', 'status' => 'error', 'detail' => $firecrawl_result->get_error_message(), 'ms' => $fc_ms];
+            return $this->error_with_log($article, $log, $pipeline_start);
+          }
+        } else {
+          return $this->error_with_log($article, $log, $pipeline_start);
+        }
+      } else {
+        $log[] = ['step' => 'Extract', 'status' => 'ok', 'detail' => sprintf('%s | %s chars | %d images', $article['title'] ?? '', strlen($article['body_text'] ?? ''), count($article['images'] ?? [])), 'ms' => $extract_ms];
       }
     }
 
-    $generated = $this->generate_draft($article, $prompt);
-    $used_ai   = ! is_wp_error($generated);
+    // --- Step 3: AI Draft ---
+    $t = microtime(true);
+    $generated = $this->generate_draft($article, $prompt, $word_count);
+    $draft_ms = round((microtime(true) - $t) * 1000);
+    $used_ai = ! is_wp_error($generated);
 
     if (is_wp_error($generated)) {
+      $log[] = ['step' => 'AI draft', 'status' => 'warn', 'detail' => 'AI failed: ' . $generated->get_error_message() . ' — using fallback', 'ms' => $draft_ms];
       $generated = $this->generate_fallback_draft($article);
-      $used_ai   = false;
+      $used_ai = false;
+    } else {
+      $wc = str_word_count(wp_strip_all_tags($generated['content_html'] ?? ''));
+      $log[] = ['step' => 'AI draft', 'status' => 'ok', 'detail' => sprintf('%d words generated', $wc), 'ms' => $draft_ms];
     }
 
+    // --- Step 4: Image sideload ---
+    $images_imported = 0;
+    $content_html = (string) ($generated['content_html'] ?? '');
+    if ($post_id > 0 && $content_html !== '') {
+      $t = microtime(true);
+      $sideload_result = $this->sideload_content_images($content_html, $post_id);
+      $sideload_ms = round((microtime(true) - $t) * 1000);
+      $content_html    = $sideload_result['html'];
+      $images_imported = $sideload_result['count'];
+      $generated['content_html'] = $content_html;
+
+      if ($images_imported > 0) {
+        $log[] = ['step' => 'Images', 'status' => 'ok', 'detail' => sprintf('%d sideloaded to media library', $images_imported), 'ms' => $sideload_ms];
+      } else {
+        $log[] = ['step' => 'Images', 'status' => 'skip', 'detail' => 'No external images to import', 'ms' => $sideload_ms];
+      }
+    }
+
+    // --- Step 5: Featured image from og:image ---
+    $featured_set = false;
+    if ($post_id > 0 && ! has_post_thumbnail($post_id)) {
+      $og_image = (string) ($article['og_image'] ?? '');
+      if ($og_image !== '' && str_starts_with($og_image, 'http')) {
+        $t = microtime(true);
+        $feat_id = $this->sideload_featured_image($og_image, $post_id, $article['title'] ?? '');
+        $feat_ms = round((microtime(true) - $t) * 1000);
+        if ($feat_id > 0) {
+          $featured_set = true;
+          $log[] = ['step' => 'Featured image', 'status' => 'ok', 'detail' => 'og:image sideloaded and set (' . substr($og_image, 0, 80) . ')', 'ms' => $feat_ms];
+        } else {
+          $log[] = ['step' => 'Featured image', 'status' => 'warn', 'detail' => 'Sideload failed for: ' . substr($og_image, 0, 80), 'ms' => $feat_ms];
+        }
+      } else {
+        $log[] = ['step' => 'Featured image', 'status' => 'skip', 'detail' => 'No og:image found in article metadata', 'ms' => 0];
+      }
+    }
+
+    // --- Step 6: Post date from article published date ---
+    $date_set = false;
+    if ($post_id > 0) {
+      $post_obj = get_post($post_id);
+      $pub_date = (string) ($article['published_date'] ?? '');
+      if ($pub_date !== '' && $post_obj && in_array($post_obj->post_status, ['draft', 'auto-draft'], true)) {
+        $normalized = self::normalize_date($pub_date);
+        if ($normalized !== '') {
+          wp_update_post([
+            'ID'            => $post_id,
+            'post_date'     => $normalized . ' 12:00:00',
+            'post_date_gmt' => get_gmt_from_date($normalized . ' 12:00:00'),
+          ]);
+          $date_set = true;
+          $log[] = ['step' => 'Post date', 'status' => 'ok', 'detail' => 'Set to article publish date: ' . $normalized, 'ms' => 0];
+        }
+      }
+    }
+
+    // --- Step 7: Meta + taxonomy ---
     $taxonomy_assigned = false;
     if ($post_id > 0) {
       $this->save_post_meta($post_id, $url, $generated);
       $taxonomy_assigned = $this->assign_source_term($post_id, (string) ($generated['news_source'] ?? ''));
+      $log[] = ['step' => 'Save', 'status' => 'ok', 'detail' => 'Post meta saved' . ($taxonomy_assigned ? ' + taxonomy assigned' : ''), 'ms' => 0];
     }
+
+    $total_ms = round((microtime(true) - $pipeline_start) * 1000);
+    $log[] = ['step' => 'Done', 'status' => 'ok', 'detail' => sprintf('Total: %ss', number_format($total_ms / 1000, 1)), 'ms' => $total_ms];
 
     $result = [
       'title'            => (string) ($generated['title'] ?? ''),
       'excerpt'          => (string) ($generated['excerpt'] ?? ''),
-      'content'          => (string) ($generated['content_html'] ?? ''),
+      'content'          => $content_html,
       'newsSource'       => (string) ($generated['news_source'] ?? ''),
       'publishedDate'    => (string) ($generated['published_date'] ?? ''),
       'taxonomyAssigned' => $taxonomy_assigned,
       'usedAI'           => $used_ai,
       'sourceUrl'        => $url,
+      'imagesImported'   => $images_imported,
+      'featuredImageSet' => $featured_set,
+      'dateSet'          => $date_set,
+      'fetchedVia'       => (string) ($article['_via'] ?? 'builtin'),
+      'log'              => $log,
     ];
 
     $result = apply_filters('ai_composer_syndication_response', $result, $article, $generated);
@@ -192,6 +418,18 @@ class AI_Composer_Syndication {
     do_action('ai_composer_after_syndicate', $result, $post_id);
 
     return $result;
+  }
+
+  /**
+   * Attach log to an error response so the editor can still display it.
+   */
+  private function error_with_log(WP_Error $error, array $log, float $pipeline_start): WP_Error {
+    $total_ms = round((microtime(true) - $pipeline_start) * 1000);
+    $log[] = ['step' => 'Failed', 'status' => 'error', 'detail' => sprintf('Total: %ss', number_format($total_ms / 1000, 1)), 'ms' => $total_ms];
+    $data = $error->get_error_data() ?: [];
+    $data['log'] = $log;
+    $error->add_data($data);
+    return $error;
   }
 
   // ------------------------------------------------------------------
@@ -314,39 +552,39 @@ class AI_Composer_Syndication {
   // Remote fetch — strategy router
   // ------------------------------------------------------------------
 
-  private function get_fetch_strategy(): string {
+  private function get_firecrawl_key(): string {
     $syn = AI_Composer_Settings::get_syndication_settings();
-    $strategy = $syn['fetch_strategy'] ?? 'builtin';
-    return apply_filters('ai_composer_syndication_fetch_strategy', $strategy);
+    return trim((string) ($syn['firecrawl_api_key'] ?? ''));
+  }
+
+  private function get_fetch_strategy(): string {
+    return $this->get_firecrawl_key() !== '' ? 'firecrawl' : 'builtin';
   }
 
   /**
    * Fetch article content from a remote URL.
    *
-   * Returns either raw HTML (builtin) or a pre-extracted article array
-   * when using Firecrawl (since it already returns structured data).
+   * Always tries the free builtin fetch first. If that fails (403, blocked,
+   * empty) and a Firecrawl API key is configured, retries via Firecrawl
+   * which can bypass anti-scraping protections.
    *
    * @return string|array|WP_Error  HTML string, Firecrawl article array, or error.
    */
   private function fetch_remote_content(string $url): string|array|WP_Error {
-    $strategy = $this->get_fetch_strategy();
+    $firecrawl_key = $this->get_firecrawl_key();
+    $has_firecrawl = $firecrawl_key !== '';
 
-    if ($strategy === 'firecrawl') {
-      $syn = AI_Composer_Settings::get_syndication_settings();
-      $api_key = trim((string) ($syn['firecrawl_api_key'] ?? ''));
+    $result = $this->fetch_via_builtin($url);
 
-      if ($api_key === '') {
-        return new WP_Error(
-          'ai_composer_syndication_firecrawl_no_key',
-          __('Firecrawl is selected as the fetch strategy but no API key is configured. Add one under Intelligence > Syndication.', 'wp-intelligence'),
-          ['status' => 400]
-        );
-      }
-
-      return $this->fetch_via_firecrawl($url, $api_key);
+    if (! is_wp_error($result)) {
+      return $result;
     }
 
-    return $this->fetch_via_builtin($url);
+    if ($has_firecrawl) {
+      return $this->fetch_via_firecrawl($url, $firecrawl_key);
+    }
+
+    return $result;
   }
 
   // ------------------------------------------------------------------
@@ -360,8 +598,8 @@ class AI_Composer_Syndication {
     );
 
     $response = wp_remote_get($url, [
-      'timeout'            => 30,
-      'redirection'        => 5,
+      'timeout'            => 10,
+      'redirection'        => 3,
       'sslverify'          => true,
       'reject_unsafe_urls' => true,
       'user-agent'         => $user_agent,
@@ -427,25 +665,91 @@ class AI_Composer_Syndication {
   // Strategy: Firecrawl API (https://firecrawl.dev)
   // ------------------------------------------------------------------
 
+  /**
+   * Firecrawl extraction schema for article content.
+   *
+   * Uses Firecrawl's JSON mode so their LLM strips navigation, ads, and
+   * boilerplate — we get clean article data without regex hacks.
+   */
+  private function get_firecrawl_article_schema(): array {
+    return [
+      'type'       => 'object',
+      'properties' => [
+        'title' => [
+          'type'        => 'string',
+          'description' => 'The article headline/title.',
+        ],
+        'author' => [
+          'type'        => ['string', 'null'],
+          'description' => 'Article author name. Return null if not found.',
+        ],
+        'published_date' => [
+          'type'        => ['string', 'null'],
+          'description' => 'Publication date in YYYY-MM-DD format. Return null if not found.',
+        ],
+        'source_name' => [
+          'type'        => ['string', 'null'],
+          'description' => 'The publication or website name (e.g. "The Guardian", "realestate.com.au"). Return null if not found.',
+        ],
+        'description' => [
+          'type'        => ['string', 'null'],
+          'description' => 'A brief 1-2 sentence summary of the article. Return null if not found.',
+        ],
+        'article_body' => [
+          'type'        => 'string',
+          'description' => 'The complete article body text with all paragraphs preserved. Separate paragraphs with double newlines. Exclude navigation, advertisements, related article links, sidebars, footer content, cookie notices, newsletter signups, and survey prompts. Include only the actual article content.',
+        ],
+        'images' => [
+          'type'  => 'array',
+          'items' => [
+            'type'       => 'object',
+            'properties' => [
+              'url'     => ['type' => 'string', 'description' => 'Full absolute image URL.'],
+              'alt'     => ['type' => ['string', 'null'], 'description' => 'Image alt text or caption.'],
+              'credit'  => ['type' => ['string', 'null'], 'description' => 'Photo credit if available.'],
+            ],
+            'required' => ['url'],
+          ],
+          'description' => 'Up to 5 article images (photos only — exclude logos, icons, ads, avatars, and UI elements). Return empty array if none found.',
+        ],
+      ],
+      'required' => ['title', 'article_body'],
+    ];
+  }
+
+  /**
+   * Fetch via Firecrawl using fast markdown mode + metadata.
+   *
+   * Markdown mode completes in ~1-2s vs ~30s+ for JSON extraction.
+   * Metadata (og:image, og:title, publishedTime) comes free with every response.
+   * Our AI provider handles the content rewriting anyway.
+   */
   private function fetch_via_firecrawl(string $url, string $api_key): array|WP_Error {
     $endpoint = apply_filters('ai_composer_firecrawl_endpoint', 'https://api.firecrawl.dev/v2/scrape');
+    $is_local = function_exists('wp_get_environment_type') && wp_get_environment_type() !== 'production';
 
     $response = wp_remote_post($endpoint, [
-      'timeout' => 45,
-      'headers' => [
+      'timeout'   => apply_filters('ai_composer_firecrawl_timeout', 30),
+      'sslverify' => ! $is_local,
+      'headers'   => [
         'Authorization' => 'Bearer ' . $api_key,
         'Content-Type'  => 'application/json',
       ],
       'body' => wp_json_encode([
-        'url'     => $url,
-        'formats' => ['markdown', 'html'],
+        'url'             => $url,
+        'formats'         => ['markdown'],
+        'onlyMainContent' => true,
+        'excludeTags'     => ['nav', 'footer', 'aside', 'header', '.sidebar', '.menu', '.breadcrumb', '.related', '.ad', '.newsletter', '.subscribe', '.comments', 'iframe', 'form'],
       ]),
     ]);
 
     if (is_wp_error($response)) {
       return new WP_Error(
         'ai_composer_syndication_firecrawl_error',
-        __('Could not reach the Firecrawl API.', 'wp-intelligence'),
+        sprintf(
+          __('Could not reach the Firecrawl API: %s', 'wp-intelligence'),
+          $response->get_error_message()
+        ),
         ['status' => 502]
       );
     }
@@ -481,11 +785,9 @@ class AI_Composer_Syndication {
 
     $data     = $body['data'] ?? [];
     $metadata = $data['metadata'] ?? [];
-    $markdown = trim((string) ($data['markdown'] ?? ''));
-    $html     = trim((string) ($data['html'] ?? ''));
+    $markdown = self::normalize_ws(trim((string) ($data['markdown'] ?? '')));
 
-    $body_text = $markdown !== '' ? $markdown : wp_strip_all_tags($html);
-    if (strlen($body_text) < 280) {
+    if (self::mb_len($markdown) < 280) {
       return new WP_Error(
         'ai_composer_syndication_firecrawl_short',
         __('Firecrawl could not extract enough readable content from this URL.', 'wp-intelligence'),
@@ -493,14 +795,15 @@ class AI_Composer_Syndication {
       );
     }
 
-    if (strlen($body_text) > 12000) {
-      $body_text = substr($body_text, 0, 12000);
+    if (self::mb_len($markdown) > 12000) {
+      $markdown = self::mb_cut($markdown, 0, 12000);
     }
 
     $title       = wp_strip_all_tags((string) ($metadata['title'] ?? $metadata['ogTitle'] ?? ''));
     $description = wp_strip_all_tags((string) ($metadata['description'] ?? $metadata['ogDescription'] ?? ''));
     $source_name = wp_strip_all_tags((string) ($metadata['ogSiteName'] ?? ''));
     $pub_date    = (string) ($metadata['publishedTime'] ?? $metadata['article:published_time'] ?? '');
+    $og_image    = trim((string) ($metadata['ogImage'] ?? ''));
 
     if ($source_name === '') {
       $source_name = self::source_from_url($url);
@@ -510,10 +813,11 @@ class AI_Composer_Syndication {
       'url'            => $url,
       'title'          => $title !== '' ? $title : ($description !== '' ? $description : 'Featured article'),
       'description'    => $description,
-      'excerpt'        => wp_strip_all_tags(wp_trim_words(preg_replace('/\s+/', ' ', $body_text), 45, '...')),
+      'excerpt'        => wp_strip_all_tags(wp_trim_words(preg_replace('/\s+/', ' ', $markdown), 45, '...')),
       'source_name'    => $source_name,
       'published_date' => self::normalize_date($pub_date),
-      'body_text'      => $body_text,
+      'body_text'      => $markdown,
+      'og_image'       => $og_image,
       '_via'           => 'firecrawl',
     ];
   }
@@ -552,6 +856,25 @@ class AI_Composer_Syndication {
         'string(//meta[@name="pubdate"]/@content)',
         'string(//time/@datetime)',
       ]);
+
+      $ld = $this->extract_jsonld_article($xpath);
+      if ($ld !== null) {
+        if ($title === '' && ! empty($ld['headline'])) {
+          $title = (string) $ld['headline'];
+        }
+        if ($description === '' && ! empty($ld['description'])) {
+          $description = (string) $ld['description'];
+        }
+        if ($published_date === '' && ! empty($ld['datePublished'])) {
+          $published_date = (string) $ld['datePublished'];
+        }
+        if ($source_name === '') {
+          $pub = $ld['publisher'] ?? null;
+          if (is_array($pub) && ! empty($pub['name'])) {
+            $source_name = (string) $pub['name'];
+          }
+        }
+      }
 
       $content_queries = [
         '//article',
@@ -604,6 +927,16 @@ class AI_Composer_Syndication {
       $source_name = self::source_from_url($url);
     }
 
+    $images = [];
+    $og_image = '';
+    if (isset($xpath)) {
+      $images = $this->extract_images_from_dom($xpath, $ld ?? null);
+      $og_image = trim((string) $xpath->evaluate('string(//meta[@property="og:image"]/@content)'));
+    }
+    if ($og_image === '' && ! empty($images)) {
+      $og_image = $images[0]['url'];
+    }
+
     return [
       'url'            => $url,
       'title'          => wp_strip_all_tags($title),
@@ -612,7 +945,124 @@ class AI_Composer_Syndication {
       'source_name'    => wp_strip_all_tags($source_name),
       'published_date' => self::normalize_date($published_date),
       'body_text'      => $body_text,
+      'images'         => $images,
+      'og_image'       => $og_image,
     ];
+  }
+
+  /**
+   * Extract the first Article/NewsArticle JSON-LD block from the page.
+   *
+   * @return array<string, mixed>|null
+   */
+  private function extract_jsonld_article(\DOMXPath $xpath): ?array {
+    $scripts = $xpath->query('//script[@type="application/ld+json"]');
+    if (! $scripts || $scripts->length < 1) {
+      return null;
+    }
+
+    foreach ($scripts as $script) {
+      $raw = trim((string) $script->textContent);
+      if ($raw === '') {
+        continue;
+      }
+      $data = json_decode($raw, true);
+      if (! is_array($data)) {
+        continue;
+      }
+
+      if (isset($data['@graph']) && is_array($data['@graph'])) {
+        foreach ($data['@graph'] as $node) {
+          if (is_array($node) && $this->is_article_type($node)) {
+            return $node;
+          }
+        }
+      }
+
+      if ($this->is_article_type($data)) {
+        return $data;
+      }
+    }
+
+    return null;
+  }
+
+  private function is_article_type(array $data): bool {
+    $type = $data['@type'] ?? '';
+    if (is_array($type)) {
+      $type = implode(' ', $type);
+    }
+    return (bool) preg_match('/Article|NewsArticle|BlogPosting|ReportageNewsArticle/i', (string) $type);
+  }
+
+  /**
+   * Collect article images from OG tags, JSON-LD, and content <img> tags.
+   *
+   * @return list<array{url: string, alt: string, credit: string}>
+   */
+  private function extract_images_from_dom(\DOMXPath $xpath, ?array $jsonld): array {
+    $seen   = [];
+    $images = [];
+
+    $og_image = trim((string) $xpath->evaluate('string(//meta[@property="og:image"]/@content)'));
+    if ($og_image !== '' && str_starts_with($og_image, 'http')) {
+      $seen[$og_image] = true;
+      $images[] = [
+        'url'    => $og_image,
+        'alt'    => trim((string) $xpath->evaluate('string(//meta[@property="og:image:alt"]/@content)')),
+        'credit' => '',
+      ];
+    }
+
+    if ($jsonld !== null) {
+      $ld_images = $jsonld['image'] ?? [];
+      if (is_string($ld_images)) {
+        $ld_images = [['url' => $ld_images]];
+      } elseif (is_array($ld_images) && isset($ld_images['url'])) {
+        $ld_images = [$ld_images];
+      } elseif (is_array($ld_images) && isset($ld_images[0]) && is_string($ld_images[0])) {
+        $ld_images = array_map(fn($u) => ['url' => $u], $ld_images);
+      }
+      foreach (array_slice($ld_images, 0, 3) as $li) {
+        if (! is_array($li)) {
+          continue;
+        }
+        $u = (string) ($li['url'] ?? '');
+        if ($u !== '' && str_starts_with($u, 'http') && ! isset($seen[$u])) {
+          $seen[$u] = true;
+          $images[] = [
+            'url'    => $u,
+            'alt'    => (string) ($li['caption'] ?? $li['name'] ?? ''),
+            'credit' => '',
+          ];
+        }
+      }
+    }
+
+    $article_imgs = $xpath->query('//article//img | //main//img | //*[@itemprop="articleBody"]//img');
+    if ($article_imgs && $article_imgs->length > 0) {
+      foreach ($article_imgs as $img) {
+        if (count($images) >= 5) {
+          break;
+        }
+        $src = trim((string) $img->getAttribute('src'));
+        if ($src === '' || ! str_starts_with($src, 'http') || isset($seen[$src])) {
+          continue;
+        }
+        $width = (int) $img->getAttribute('width');
+        if ($width > 0 && $width < 200) {
+          continue;
+        }
+        $seen[$src] = true;
+        $images[] = [
+          'url'    => $src,
+          'alt'    => trim((string) $img->getAttribute('alt')),
+          'credit' => '',
+        ];
+      }
+    }
+
+    return array_slice($images, 0, 5);
   }
 
   private function readable_text_from_node(\DOMXPath $xpath, \DOMNode $node): string {
@@ -676,7 +1126,7 @@ class AI_Composer_Syndication {
   // AI draft generation
   // ------------------------------------------------------------------
 
-  private function generate_draft(array $article, string $prompt = ''): array|WP_Error {
+  private function generate_draft(array $article, string $prompt = '', int $word_count = 600): array|WP_Error {
     if (! $this->provider->is_available()) {
       return new WP_Error(
         'ai_composer_syndication_no_provider',
@@ -688,10 +1138,16 @@ class AI_Composer_Syndication {
     $settings = AI_Composer_Settings::get_syndication_settings();
     $custom_prompt = trim((string) ($settings['system_prompt'] ?? ''));
 
-    $system_prompt = $custom_prompt !== '' ? $custom_prompt : $this->get_default_system_prompt();
-    $system_prompt = apply_filters('ai_composer_syndication_system_prompt', $system_prompt);
+    $system_prompt = $custom_prompt !== '' ? $custom_prompt : $this->get_default_system_prompt($word_count);
+    $system_prompt = apply_filters('ai_composer_syndication_system_prompt', $system_prompt, $word_count);
 
-    $user_payload = wp_json_encode([
+    $site_name = apply_filters(
+      'ai_composer_syndication_site_name',
+      get_bloginfo('name')
+    );
+
+    $payload_data = [
+      'site_name'        => sanitize_text_field($site_name),
       'source_url'       => (string) ($article['url'] ?? ''),
       'source_title'     => (string) ($article['title'] ?? ''),
       'source_name'      => (string) ($article['source_name'] ?? ''),
@@ -699,7 +1155,13 @@ class AI_Composer_Syndication {
       'source_excerpt'   => (string) ($article['excerpt'] ?? ''),
       'source_body_text' => (string) ($article['body_text'] ?? ''),
       'editor_prompt'    => trim($prompt),
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    ];
+
+    if (! empty($article['images'])) {
+      $payload_data['source_images'] = $article['images'];
+    }
+
+    $user_payload = wp_json_encode($payload_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     $schema = $this->get_output_schema();
 
@@ -724,7 +1186,12 @@ class AI_Composer_Syndication {
     $excerpt      = sanitize_text_field((string) ($content['excerpt'] ?? $article['excerpt'] ?? ''));
     $news_source  = sanitize_text_field((string) ($content['news_source'] ?? $article['source_name'] ?? ''));
     $published    = self::normalize_date((string) ($content['published_date'] ?? $article['published_date'] ?? ''));
-    $content_html = wp_kses_post((string) ($content['content_html'] ?? ''));
+    $raw_html = (string) ($content['content_html'] ?? '');
+    $allowed  = wp_kses_allowed_html('post');
+    if (isset($allowed['a'])) {
+      $allowed['a']['target'] = true;
+    }
+    $content_html = wp_kses($raw_html, $allowed);
 
     if ($content_html === '') {
       return new WP_Error(
@@ -734,12 +1201,15 @@ class AI_Composer_Syndication {
       );
     }
 
-    $source_url = (string) ($article['url'] ?? '');
+    $source_url  = (string) ($article['url'] ?? '');
+    $source_name = sanitize_text_field((string) ($article['source_name'] ?? ''));
+    $link_label  = $source_name !== '' ? $source_name : $source_url;
+
     if ($source_url !== '' && ! str_contains($content_html, $source_url)) {
       $content_html .= sprintf(
-        '<p><strong>Original source:</strong> <a href="%1$s" rel="noopener noreferrer nofollow">%2$s</a></p>',
+        '<p><a href="%1$s" target="_blank" rel="noopener noreferrer nofollow"><strong>Read the full article on %2$s &rarr;</strong></a></p>',
         esc_url($source_url),
-        esc_html($source_url)
+        esc_html($link_label)
       );
     }
 
@@ -764,12 +1234,15 @@ class AI_Composer_Syndication {
       $html = '<p>' . esc_html((string) ($article['excerpt'] ?? '')) . '</p>';
     }
 
-    $source_url = (string) ($article['url'] ?? '');
+    $source_url  = (string) ($article['url'] ?? '');
+    $source_name = sanitize_text_field((string) ($article['source_name'] ?? ''));
+    $link_label  = $source_name !== '' ? $source_name : $source_url;
+
     if ($source_url !== '') {
       $html .= sprintf(
-        '<p><strong>Original source:</strong> <a href="%1$s" rel="noopener noreferrer nofollow">%2$s</a></p>',
+        '<p><a href="%1$s" target="_blank" rel="noopener noreferrer nofollow"><strong>Read the full article on %2$s &rarr;</strong></a></p>',
         esc_url($source_url),
-        esc_html($source_url)
+        esc_html($link_label)
       );
     }
 
@@ -777,14 +1250,18 @@ class AI_Composer_Syndication {
       'title'          => sanitize_text_field((string) ($article['title'] ?? 'Featured article')),
       'excerpt'        => sanitize_text_field((string) ($article['excerpt'] ?? '')),
       'content_html'   => $html,
-      'news_source'    => sanitize_text_field((string) ($article['source_name'] ?? '')),
+      'news_source'    => $source_name,
       'published_date' => self::normalize_date((string) ($article['published_date'] ?? '')),
     ];
   }
 
-  private function get_default_system_prompt(): string {
-    return <<<'PROMPT'
-You are a content editor drafting "as featured in" newsroom entries from third-party media coverage.
+  private function get_default_system_prompt(int $word_count = 600): string {
+    $lower = max(200, (int) round($word_count * 0.8));
+    $upper = (int) round($word_count * 1.2);
+
+    return <<<PROMPT
+You are a content editor writing "as featured in" newsroom posts that syndicate third-party media coverage.
+The payload includes a site_name field — this is the brand/company that was featured in the media article.
 Return valid JSON only.
 
 Required JSON shape:
@@ -797,14 +1274,32 @@ Required JSON shape:
   "suggested_tags": ["string"]
 }
 
-Rules:
-- Keep claims factual and grounded in the provided source text only.
-- Write in concise Australian English.
-- Keep content_html between 200 and 500 words unless the source text is short.
-- Use clean semantic HTML suitable for the WordPress block editor:
-  allowed tags include p, h2, h3, ul, ol, li, strong, em, a.
-- Include one "Key takeaway" section heading.
-- Include a final paragraph linking to the original source URL.
+CRITICAL — Anti-hallucination rules:
+- ONLY use facts, statistics, quotes, and claims that appear in the provided source text.
+- NEVER invent, fabricate, or extrapolate data points, percentages, dollar amounts, or quotes.
+- NEVER attribute statements to people unless the source text explicitly quotes them.
+- If the source lacks specific data for a claim, omit the claim entirely rather than guessing.
+- When paraphrasing, stay faithful to the original meaning — do not editorialize or add analysis beyond what the source states.
+
+Syndication framing:
+- The opening paragraph MUST frame this as media coverage of the site_name brand. Examples:
+  "[site_name] was recently featured in [source_name], discussing [topic]."
+  "[site_name]'s research was highlighted by [source_name] in a piece covering [topic]."
+  "In a recent article published by [source_name], [site_name] founder [person] shared insights on [topic]."
+- Use the actual site_name and source_name from the payload — never use placeholders.
+- The tone should position this as earned media coverage — authoritative, credible, and third-party validated.
+- If the source article quotes someone from the site_name organisation, lead with that angle.
+
+Content rules:
+- Write in Australian English with a professional, authoritative tone.
+- Aim for {$lower}–{$upper} words of content_html.
+- After the intro, structure the content with clear sections using h2/h3 headings (e.g. key findings, market data, expert commentary, outlook).
+- Use clean semantic HTML for the WordPress block editor:
+  allowed tags: p, h2, h3, ul, ol, li, strong, em, a, blockquote, figure, img, figcaption.
+- Preserve specific numbers, statistics, and direct quotes with attribution.
+- Use <blockquote> for direct quotes, followed by attribution text.
+- If source_images are provided, include up to 2 relevant article photos using <figure><img src="URL" alt="description"><figcaption>Credit/caption</figcaption></figure>. Omit logos, icons, ads, and UI screenshots.
+- End with a paragraph linking to the source_url: <a href="URL" target="_blank" rel="noopener noreferrer nofollow"><strong>Read the full article on SOURCE_NAME →</strong></a>
 - If an editor_prompt is provided, follow its guidance for tone, length, or focus.
 - Never include markdown fences or extra commentary outside JSON.
 PROMPT;
@@ -871,6 +1366,98 @@ PROMPT;
     }
 
     return ! is_wp_error(wp_set_object_terms($post_id, [$term_id], $taxonomy, true));
+  }
+
+  // ------------------------------------------------------------------
+  // Image sideloading
+  // ------------------------------------------------------------------
+
+  /**
+   * Find external <img> tags in content HTML, sideload them into the WP
+   * media library, and replace the src URLs with local attachment URLs.
+   *
+   * @return array{html: string, count: int}
+   */
+  private function sideload_content_images(string $html, int $post_id): array {
+    if ($post_id <= 0 || trim($html) === '') {
+      return ['html' => $html, 'count' => 0];
+    }
+
+    if (! function_exists('media_sideload_image')) {
+      require_once ABSPATH . 'wp-admin/includes/media.php';
+      require_once ABSPATH . 'wp-admin/includes/file.php';
+      require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+
+    $site_host = (string) wp_parse_url(home_url(), PHP_URL_HOST);
+    $count = 0;
+
+    if (! preg_match_all('/<img\s[^>]*src=["\']([^"\']+)["\'][^>]*>/i', $html, $matches, PREG_SET_ORDER)) {
+      return ['html' => $html, 'count' => 0];
+    }
+
+    foreach ($matches as $match) {
+      $original_tag = $match[0];
+      $img_url      = $match[1];
+
+      if (! str_starts_with($img_url, 'http')) {
+        continue;
+      }
+
+      $img_host = (string) wp_parse_url($img_url, PHP_URL_HOST);
+      if ($img_host === $site_host) {
+        continue;
+      }
+
+      $attachment_id = media_sideload_image($img_url, $post_id, '', 'id');
+      if (is_wp_error($attachment_id)) {
+        continue;
+      }
+
+      $local_url = wp_get_attachment_url($attachment_id);
+      if ($local_url === false) {
+        continue;
+      }
+
+      $html = str_replace($img_url, $local_url, $html);
+      $count++;
+    }
+
+    return ['html' => $html, 'count' => $count];
+  }
+
+  /**
+   * Download an image URL and set it as the post's featured image.
+   *
+   * @return int Attachment ID on success, 0 on failure.
+   */
+  private function sideload_featured_image(string $url, int $post_id, string $description = ''): int {
+    if (! function_exists('media_sideload_image')) {
+      require_once ABSPATH . 'wp-admin/includes/media.php';
+      require_once ABSPATH . 'wp-admin/includes/file.php';
+      require_once ABSPATH . 'wp-admin/includes/image.php';
+    }
+
+    add_filter('http_request_args', [$this, 'relax_sideload_args'], 10, 2);
+    $attachment_id = media_sideload_image($url, $post_id, $description, 'id');
+    remove_filter('http_request_args', [$this, 'relax_sideload_args'], 10);
+
+    if (is_wp_error($attachment_id)) {
+      return 0;
+    }
+
+    set_post_thumbnail($post_id, $attachment_id);
+    return (int) $attachment_id;
+  }
+
+  /**
+   * @internal Temporarily relax SSL/redirect settings for image sideloading
+   * since many news sites serve images via CDN with redirects.
+   */
+  public function relax_sideload_args(array $args, string $url): array {
+    $args['timeout']     = 30;
+    $args['redirection'] = 10;
+    return $args;
   }
 
   // ------------------------------------------------------------------
