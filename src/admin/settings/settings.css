@@ -700,6 +700,138 @@
 	margin-top: 16px;
 }
 
+/* ── Dynamic Data tab ─────────────────── */
+
+.wpi-dd-table {
+	width: 100%;
+	border-collapse: collapse;
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+	margin-bottom: 16px;
+	font-size: 13px;
+}
+
+.wpi-dd-table th,
+.wpi-dd-table td {
+	text-align: left;
+	padding: 10px 14px;
+	border-bottom: 1px solid #f0f0f0;
+}
+
+.wpi-dd-table thead th {
+	background: #f6f7f7;
+	font-weight: 600;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #757575;
+}
+
+.wpi-dd-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.wpi-dd-table code {
+	font-size: 12px;
+	background: #f0f0f0;
+	padding: 2px 6px;
+	border-radius: 3px;
+}
+
+.wpi-dd-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.wpi-dd-test-result {
+	font-size: 12px;
+	color: #757575;
+}
+
+.wpi-dd-empty {
+	color: #757575;
+	font-size: 13px;
+	font-style: italic;
+}
+
+.wpi-dd-notice {
+	margin-bottom: 12px;
+}
+
+.wpi-dd-add-trigger {
+	margin-top: 12px;
+}
+
+.wpi-dd-add-form {
+	margin-top: 20px;
+	padding: 20px;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	background: #f6f7f7;
+}
+
+.wpi-dd-add-form h4 {
+	margin: 0 0 16px;
+	font-size: 14px;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.wpi-dd-form-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.wpi-dd-status {
+	margin: 12px 0 0;
+	font-size: 13px;
+	color: #757575;
+}
+
+.wpi-dd-form-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.wpi-dd-tag-group {
+	margin-bottom: 16px;
+}
+
+.wpi-dd-tag-group:last-child {
+	margin-bottom: 0;
+}
+
+.wpi-dd-group-title {
+	margin: 0 0 8px;
+	font-size: 13px;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.wpi-dd-tags-table {
+	margin-bottom: 0;
+}
+
+.wpi-dd-badge {
+	display: inline-block;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #b35900;
+	background: #fff3e0;
+	border: 1px solid #f0c89a;
+	border-radius: 3px;
+	padding: 1px 6px;
+	margin-left: 6px;
+	vertical-align: middle;
+}
+
 /* ── Responsive ────────────────────────── */
 
 @media (max-width: 782px) {

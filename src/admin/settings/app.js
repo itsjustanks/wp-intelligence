@@ -17,6 +17,7 @@ import PerformanceTab from './tabs/performance';
 import ResourceHintsTab from './tabs/resource-hints';
 import WooCommerceTab from './tabs/woocommerce';
 import CanvasModeTab from './tabs/canvas-mode';
+import DynamicDataTab from './tabs/dynamic-data';
 import './settings.css';
 
 const TAB_COMPONENTS = {
@@ -28,6 +29,7 @@ const TAB_COMPONENTS = {
 	featured_image_ai: FeaturedImageTab,
 	visibility: VisibilityTab,
 	canvas_mode: CanvasModeTab,
+	dynamic_data: DynamicDataTab,
 	security: SecurityTab,
 	performance: PerformanceTab,
 	resource_hints: ResourceHintsTab,
@@ -93,7 +95,7 @@ export default function SettingsApp() {
 						<span className="wpi-version-pill">
 							{ `v${ config.version || '0.2.0' }` }
 						</span>
-						{ activeTab !== 'welcome' && activeTab !== 'visibility' && (
+						{ activeTab !== 'welcome' && activeTab !== 'visibility' && activeTab !== 'dynamic_data' && (
 							<Button
 								variant="primary"
 								isBusy={ isSaving }
@@ -148,6 +150,7 @@ function buildTabs( modules, registry ) {
 		{ id: 'featured_image_ai', label: __( 'Featured Image AI', 'wp-intelligence' ), icon: 'format-image' },
 		{ id: 'visibility', label: __( 'Visibility', 'wp-intelligence' ), icon: 'visibility' },
 		{ id: 'canvas_mode', label: __( 'Canvas Mode', 'wp-intelligence' ), icon: 'grid-view' },
+		{ id: 'dynamic_data', label: __( 'Dynamic Data', 'wp-intelligence' ), icon: 'database' },
 		{ id: 'security', label: __( 'Security', 'wp-intelligence' ), icon: 'shield' },
 		{ id: 'performance', label: __( 'Performance', 'wp-intelligence' ), icon: 'performance' },
 		{ id: 'resource_hints', label: __( 'Resource Hints', 'wp-intelligence' ), icon: 'admin-links' },
