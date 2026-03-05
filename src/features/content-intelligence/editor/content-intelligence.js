@@ -28,6 +28,121 @@
   var createBlock     = wp.blocks.createBlock;
   var rawHandler      = wp.blocks.rawHandler;
 
+  function RefUrlsField(props) {
+    var value = props.value;
+    var onChange = props.onChange;
+    var disabled = props.disabled;
+    var _searching = useState(false);
+    var searching = _searching[0], setSearching = _searching[1];
+    var _query = useState('');
+    var query = _query[0], setQuery = _query[1];
+    var _results = useState([]);
+    var results = _results[0], setResults = _results[1];
+    var _loading = useState(false);
+    var isLoading = _loading[0], setIsLoading = _loading[1];
+    var debounceRef = useRef(null);
+    var containerRef = useRef(null);
+
+    function doSearch(q) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (q.length < 2) { setResults([]); setIsLoading(false); return; }
+      setIsLoading(true);
+      debounceRef.current = setTimeout(function () {
+        apiFetch({ path: '/wp/v2/search?search=' + encodeURIComponent(q) + '&per_page=6&type=post' })
+          .then(function (res) { setResults(res); setIsLoading(false); })
+          .catch(function () { setResults([]); setIsLoading(false); });
+      }, 300);
+    }
+
+    function handleQueryChange(q) {
+      setQuery(q);
+      doSearch(q);
+    }
+
+    function insertUrl(url) {
+      var current = (value || '').trim();
+      onChange(current ? current + '\n' + url : url);
+      setQuery('');
+      setResults([]);
+      setSearching(false);
+    }
+
+    useEffect(function () {
+      function handler(e) {
+        if (containerRef.current && !containerRef.current.contains(e.target)) {
+          setSearching(false);
+        }
+      }
+      document.addEventListener('mousedown', handler);
+      return function () { document.removeEventListener('mousedown', handler); };
+    }, []);
+
+    return el('div', { ref: containerRef, style: { position: 'relative' } },
+      el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' } },
+        el('span', { style: { fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' } },
+          __('Reference URLs (optional)', 'wp-intelligence')
+        ),
+        el(Button, {
+          variant: 'tertiary',
+          size: 'compact',
+          onClick: function () { setSearching(!searching); },
+          disabled: disabled,
+          style: { fontSize: '11px' },
+        }, searching ? __('Close', 'wp-intelligence') : __('Browse site', 'wp-intelligence'))
+      ),
+
+      searching && el('div', { style: { position: 'relative', marginBottom: '6px' } },
+        el(TextControl, {
+          placeholder: __('Search posts and pages…', 'wp-intelligence'),
+          value: query,
+          onChange: handleQueryChange,
+          __nextHasNoMarginBottom: true,
+        }),
+        (results.length > 0 || isLoading) && el('div', {
+          style: {
+            position: 'absolute', zIndex: 100, background: '#fff',
+            border: '1px solid #ddd', borderRadius: '2px',
+            boxShadow: '0 2px 6px rgba(0,0,0,.1)',
+            maxHeight: '180px', overflow: 'auto', width: '100%',
+            top: '100%', marginTop: '-4px',
+          },
+        },
+          isLoading && el('div', { style: { padding: '8px 12px', textAlign: 'center' } }, el(Spinner, null)),
+          !isLoading && results.map(function (r) {
+            return el('button', {
+              key: r.id, type: 'button',
+              onClick: function () { insertUrl(r.url); },
+              style: {
+                display: 'block', width: '100%', textAlign: 'left',
+                padding: '6px 10px', border: 'none', background: 'none',
+                cursor: 'pointer', borderBottom: '1px solid #f0f0f0', fontSize: '12px',
+              },
+              onMouseEnter: function (e) { e.currentTarget.style.background = '#f0f6fc'; },
+              onMouseLeave: function (e) { e.currentTarget.style.background = 'none'; },
+            },
+              el('strong', null, r.title),
+              el('span', { style: { color: '#757575', marginLeft: '6px', fontSize: '11px' } },
+                r.subtype || r.type
+              ),
+              el('span', {
+                style: { display: 'block', color: '#2271b1', fontSize: '10px', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+              }, r.url)
+            );
+          })
+        )
+      ),
+
+      el(TextareaControl, {
+        help: __('Additional URLs for the AI to cross-reference and cite. One per line. Use "Browse site" to find your own posts.', 'wp-intelligence'),
+        value: value,
+        onChange: onChange,
+        rows: 2,
+        disabled: disabled,
+        __nextHasNoMarginBottom: true,
+      })
+    );
+  }
+
   var SOURCE_TYPES = [
     { value: 'url', label: __('URL', 'wp-intelligence') },
     { value: 'text', label: __('Paste text', 'wp-intelligence') },
@@ -421,14 +536,10 @@
             __nextHasNoMarginBottom: true,
           }),
 
-          el(TextareaControl, {
-            label: __('Reference URLs (optional)', 'wp-intelligence'),
-            help: __('Additional URLs for the AI to cross-reference and cite. One per line.', 'wp-intelligence'),
+          el(RefUrlsField, {
             value: refUrls,
             onChange: setRefUrls,
-            rows: 2,
             disabled: loading,
-            __nextHasNoMarginBottom: true,
           }),
 
           srcType === 'url' && el('div', { className: 'wpi-syndication-file-upload' },
