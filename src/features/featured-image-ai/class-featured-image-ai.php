@@ -198,6 +198,17 @@ class WPI_Featured_Image_AI {
       'custom_instructions' => $request->get_param('custom_instructions') ?: ($settings['custom_instructions'] ?? ''),
     ];
 
+    if (class_exists('AI_Composer_Context_Provider')) {
+      $brand_voice = AI_Composer_Context_Provider::get_brand_voice();
+      if ($brand_voice !== '') {
+        $brand_summary = mb_substr($brand_voice, 0, 1000);
+        $existing = trim($overrides['custom_instructions']);
+        $overrides['custom_instructions'] = $existing !== ''
+          ? $existing . "\n\nBrand context:\n" . $brand_summary
+          : "Brand context:\n" . $brand_summary;
+      }
+    }
+
     $title   = $post->post_title ?: __('Untitled', 'wp-intelligence');
     $content = $post->post_content ?: '';
 
