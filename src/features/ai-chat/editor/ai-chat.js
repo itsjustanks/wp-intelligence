@@ -92,7 +92,11 @@
     text = text.replace(/<\/ul>\s*<ul>/g, '');
 
     // Ordered lists
-    text = text.replace(/(^|\n)\d+\. (.+)/g, '$1<li>$2</li>');
+    text = text.replace(/(^|\n)\d+\. (.+)/g, '$1<oli>$2</oli>');
+    text = text.replace(/(<oli>[\s\S]*?<\/oli>)/g, '<ol>$1</ol>');
+    text = text.replace(/<\/ol>\s*<ol>/g, '');
+    text = text.replace(/<oli>/g, '<li>');
+    text = text.replace(/<\/oli>/g, '</li>');
 
     // Headers
     text = text.replace(/(^|\n)### (.+)/g, '$1<h4>$2</h4>');
