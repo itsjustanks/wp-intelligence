@@ -74,7 +74,7 @@ When making changes, optimize for:
   - `admin/` — editor asset enqueue and React settings page.
   - `frontend/` — render_block filter and visibility evaluation.
   - `assets/` — compiled JS/CSS bundles for editor and settings UI.
-- `src/features/syndication/` — AI-powered content syndication and rewriting.
+- `src/features/content-intelligence/` — AI-powered content generation from URLs, videos, text, and files with source citations and ACF field mapping.
 - `src/features/admin-experience/` — admin bar, login, footer, menu, editor enhancements.
 - `src/features/admin-columns/` — post list columns and post type switcher.
 - `src/features/code-injection/` — sitewide header/footer code injection.

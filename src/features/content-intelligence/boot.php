@@ -6,10 +6,10 @@ if (! defined('ABSPATH')) {
 require_once __DIR__ . '/class-syndication.php';
 
 WPI_Module_Manager::register('syndication', [
-  'title'       => __('Content Syndication', 'wp-intelligence'),
-  'description' => __('Fetch external articles, AI-rewrite them, and publish as native posts.', 'wp-intelligence'),
+  'title'       => __('Content Intelligence', 'wp-intelligence'),
+  'description' => __('Generate content from URLs, videos, text, and files with AI-powered rewriting, source citations, and ACF field mapping.', 'wp-intelligence'),
   'category'    => __('AI & Content', 'wp-intelligence'),
-  'icon'        => 'rss',
+  'icon'        => 'welcome-write-blog',
   'boot'        => ['AI_Composer_Syndication', 'boot'],
   'default'     => true,
 ]);

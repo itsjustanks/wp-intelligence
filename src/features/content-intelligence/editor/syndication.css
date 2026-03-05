@@ -39,3 +39,39 @@
 #wpi-syndication-metabox .components-range-control__wrapper {
   margin-top: 0;
 }
+
+#wpi-syndication-metabox .wpi-syndication-acf-fields {
+  border: 1px solid #e0e0e0;
+  border-radius: 2px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+#wpi-syndication-metabox .wpi-syndication-acf-fields .components-checkbox-control__label {
+  font-size: 12px;
+}
+
+#wpi-syndication-metabox .wpi-syndication-acf-fields .components-base-control {
+  margin-bottom: 4px;
+}
+
+#wpi-syndication-metabox .wpi-source-type-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+#wpi-syndication-metabox .wpi-source-type-tabs .components-button {
+  flex: 1;
+  justify-content: center;
+}
+
+#wpi-syndication-metabox .wpi-syndication-file-upload {
+  border: 1px dashed #ccc;
+  border-radius: 2px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+#wpi-syndication-metabox .wpi-syndication-file-upload input[type="file"] {
+  max-width: 100%;
+}

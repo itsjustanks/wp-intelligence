@@ -53,7 +53,7 @@ class AI_Composer_Syndication {
     }
 
     $js_path = __DIR__ . '/editor/syndication.js';
-    $js_url  = defined('WPI_URL') ? WPI_URL . 'src/features/syndication/editor/syndication.js' : '';
+    $js_url  = defined('WPI_URL') ? WPI_URL . 'src/features/content-intelligence/editor/syndication.js' : '';
 
     if ($js_url === '' || ! file_exists($js_path)) {
       return;
@@ -68,7 +68,7 @@ class AI_Composer_Syndication {
     );
 
     $css_path = __DIR__ . '/editor/syndication.css';
-    $css_url  = defined('WPI_URL') ? WPI_URL . 'src/features/syndication/editor/syndication.css' : '';
+    $css_url  = defined('WPI_URL') ? WPI_URL . 'src/features/content-intelligence/editor/syndication.css' : '';
     if ($css_url !== '' && file_exists($css_path)) {
       wp_enqueue_style(
         'wpi-syndication',
@@ -78,11 +78,25 @@ class AI_Composer_Syndication {
       );
     }
 
+    $syn = AI_Composer_Settings::get_syndication_settings();
+    $output_defaults = (array) ($syn['output_format_defaults'] ?? []);
+
+    $styles = AI_Composer_Settings::get_content_styles();
+    $styles_for_js = array_map(function ($s) {
+      return [
+        'value'      => $s['id'],
+        'label'      => $s['label'],
+        'sourceType' => $s['source_type'] ?? 'all',
+      ];
+    }, $styles);
+
     wp_localize_script('wpi-syndication', 'wpiSyndicationConfig', [
-      'restNamespace'    => 'ai-composer/v1',
-      'nonce'            => wp_create_nonce('wp_rest'),
-      'enabledPostTypes' => $this->get_enabled_post_types(),
-      'hasFirecrawl'     => $this->get_firecrawl_key() !== '',
+      'restNamespace'      => 'ai-composer/v1',
+      'nonce'              => wp_create_nonce('wp_rest'),
+      'enabledPostTypes'   => $this->get_enabled_post_types(),
+      'hasFirecrawl'       => $this->get_firecrawl_key() !== '',
+      'outputDefaults'     => $output_defaults,
+      'contentStyles'      => array_values($styles_for_js),
     ]);
   }
 
@@ -98,7 +112,23 @@ class AI_Composer_Syndication {
         'prompt'     => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_text_field'],
         'post_id'    => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
         'postId'     => ['type' => 'integer', 'default' => 0, 'sanitize_callback' => 'absint'],
-        'word_count' => ['type' => 'integer', 'default' => 600, 'sanitize_callback' => 'absint'],
+        'word_count'     => ['type' => 'integer', 'default' => 600, 'sanitize_callback' => 'absint'],
+        'mode'           => ['type' => 'string', 'default' => 'featured_in', 'sanitize_callback' => 'sanitize_key'],
+        'reference_urls'  => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_textarea_field'],
+        'selected_fields' => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_textarea_field'],
+        'extra_context'      => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_textarea_field'],
+        'field_instructions' => ['type' => 'string', 'default' => '', 'sanitize_callback' => 'sanitize_textarea_field'],
+      ],
+    ]);
+
+    register_rest_route('ai-composer/v1', '/syndicate/fields', [
+      'methods'             => 'GET',
+      'callback'            => [$this, 'handle_fields_request'],
+      'permission_callback' => function () {
+        return current_user_can(apply_filters('ai_composer_capability', 'edit_posts'));
+      },
+      'args' => [
+        'post_id' => ['required' => true, 'type' => 'integer', 'sanitize_callback' => 'absint'],
       ],
     ]);
 
@@ -128,11 +158,27 @@ class AI_Composer_Syndication {
     $word_count = absint($request->get_param('word_count'));
     $word_count = max(200, min(1500, $word_count ?: 600));
 
+    $mode = sanitize_key($request->get_param('mode') ?: 'featured_in');
+    $valid_modes = array_column(AI_Composer_Settings::get_content_styles(), 'id');
+    if (! in_array($mode, $valid_modes, true)) {
+      $mode = 'featured_in';
+    }
+
+    $reference_urls = sanitize_textarea_field($request->get_param('reference_urls') ?: '');
+    $selected_fields = sanitize_textarea_field($request->get_param('selected_fields') ?: '');
+    $extra_context      = sanitize_textarea_field($request->get_param('extra_context') ?: '');
+    $field_instructions = sanitize_textarea_field($request->get_param('field_instructions') ?: '');
+
     $result = $this->syndicate(
       $request->get_param('url'),
       $request->get_param('prompt'),
       $post_id,
-      $word_count
+      $word_count,
+      $mode,
+      $reference_urls,
+      $selected_fields,
+      $extra_context,
+      $field_instructions
     );
 
     if (is_wp_error($result)) {
@@ -140,6 +186,51 @@ class AI_Composer_Syndication {
     }
 
     return new WP_REST_Response($result, 200);
+  }
+
+  /**
+   * Return ACF field groups and simple fields for the given post's post type.
+   * Phase 1: text, textarea, wysiwyg, number, url, image, select, true_false,
+   * email, date_picker only. Repeaters/groups deferred to Phase 2.
+   */
+  public function handle_fields_request(WP_REST_Request $request): WP_REST_Response {
+    $post_id = absint($request->get_param('post_id'));
+    if ($post_id <= 0 || ! function_exists('acf_get_field_groups') || ! function_exists('acf_get_fields')) {
+      return new WP_REST_Response(['fields' => []], 200);
+    }
+
+    $post_type = get_post_type($post_id);
+    if (! $post_type) {
+      return new WP_REST_Response(['fields' => []], 200);
+    }
+
+    $simple_types = ['text', 'textarea', 'wysiwyg', 'number', 'url', 'image', 'select', 'true_false', 'email', 'date_picker'];
+    $groups = acf_get_field_groups(['post_type' => $post_type]);
+    $fields = [];
+
+    foreach ($groups as $group) {
+      $group_fields = acf_get_fields($group['key']);
+      if (! is_array($group_fields)) {
+        continue;
+      }
+      foreach ($group_fields as $field) {
+        if (! in_array($field['type'], $simple_types, true)) {
+          continue;
+        }
+        $fields[] = [
+          'key'   => $field['key'],
+          'name'  => $field['name'],
+          'label' => $field['label'],
+          'type'  => $field['type'],
+          'group' => $group['title'],
+        ];
+      }
+    }
+
+    return new WP_REST_Response([
+      'fields'    => $fields,
+      'post_type' => $post_type,
+    ], 200);
   }
 
   /**
@@ -256,7 +347,7 @@ class AI_Composer_Syndication {
    * @param int    $post_id Post ID (0 if unsaved).
    * @return array<string, mixed>|WP_Error
    */
-  public function syndicate(string $url, string $prompt = '', int $post_id = 0, int $word_count = 600): array|WP_Error {
+  public function syndicate(string $url, string $prompt = '', int $post_id = 0, int $word_count = 600, string $mode = 'featured_in', string $reference_urls = '', string $selected_fields = '', string $extra_context = '', string $field_instructions = ''): array|WP_Error {
     $pipeline_start = microtime(true);
     $log = [];
 
@@ -317,7 +408,12 @@ class AI_Composer_Syndication {
 
     // --- Step 3: AI Draft ---
     $t = microtime(true);
-    $generated = $this->generate_draft($article, $prompt, $word_count);
+    $instructions_map = json_decode($field_instructions, true);
+    if (! is_array($instructions_map)) {
+      $instructions_map = [];
+    }
+    $target_fields = $this->resolve_selected_fields($selected_fields, $post_id, $instructions_map);
+    $generated = $this->generate_draft($article, $prompt, $word_count, $mode, $reference_urls, $target_fields, $extra_context);
     $draft_ms = round((microtime(true) - $t) * 1000);
     $used_ai = ! is_wp_error($generated);
 
@@ -367,7 +463,24 @@ class AI_Composer_Syndication {
       }
     }
 
-    // --- Step 6: Post date from article published date ---
+    // --- Step 6: ACF field values ---
+    $fields_written = 0;
+    $field_values = $generated['field_values'] ?? [];
+    if ($post_id > 0 && is_array($field_values) && ! empty($field_values) && function_exists('update_field')) {
+      $valid_names = array_column($target_fields, 'name');
+      foreach ($field_values as $name => $value) {
+        if (! in_array($name, $valid_names, true)) {
+          continue;
+        }
+        update_field($name, $value, $post_id);
+        $fields_written++;
+      }
+      if ($fields_written > 0) {
+        $log[] = ['step' => 'ACF fields', 'status' => 'ok', 'detail' => sprintf('%d field(s) populated: %s', $fields_written, implode(', ', array_keys(array_intersect_key($field_values, array_flip($valid_names))))), 'ms' => 0];
+      }
+    }
+
+    // --- Step 7: Post date from article published date ---
     $date_set = false;
     if ($post_id > 0) {
       $post_obj = get_post($post_id);
@@ -408,6 +521,7 @@ class AI_Composer_Syndication {
       'sourceUrl'        => $url,
       'imagesImported'   => $images_imported,
       'featuredImageSet' => $featured_set,
+      'fieldsWritten'    => $fields_written,
       'dateSet'          => $date_set,
       'fetchedVia'       => (string) ($article['_via'] ?? 'builtin'),
       'log'              => $log,
@@ -573,6 +687,17 @@ class AI_Composer_Syndication {
   private function fetch_remote_content(string $url): string|array|WP_Error {
     $firecrawl_key = $this->get_firecrawl_key();
     $has_firecrawl = $firecrawl_key !== '';
+
+    if (self::is_youtube_url($url)) {
+      if ($has_firecrawl) {
+        return $this->fetch_via_youtube($url, $firecrawl_key);
+      }
+      return new WP_Error(
+        'ai_composer_syndication_youtube_no_key',
+        __('YouTube URLs require a Firecrawl API key. Add one under Intelligence > Syndication.', 'wp-intelligence'),
+        ['status' => 400]
+      );
+    }
 
     $result = $this->fetch_via_builtin($url);
 
@@ -820,6 +945,164 @@ class AI_Composer_Syndication {
       'og_image'       => $og_image,
       '_via'           => 'firecrawl',
     ];
+  }
+
+  // ------------------------------------------------------------------
+  // YouTube transcript via Firecrawl
+  // ------------------------------------------------------------------
+
+  private static function is_youtube_url(string $url): bool {
+    $host = strtolower((string) wp_parse_url($url, PHP_URL_HOST));
+    $host = (string) preg_replace('/^www\./i', '', $host);
+    return in_array($host, ['youtube.com', 'youtu.be', 'm.youtube.com'], true);
+  }
+
+  private static function extract_youtube_video_id(string $url): string {
+    if (preg_match('/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/', $url, $m)) {
+      return $m[1];
+    }
+    return '';
+  }
+
+  private function fetch_via_youtube(string $url, string $api_key): array|WP_Error {
+    $endpoint = apply_filters('ai_composer_firecrawl_endpoint', 'https://api.firecrawl.dev/v2/scrape');
+    $is_local = function_exists('wp_get_environment_type') && wp_get_environment_type() !== 'production';
+
+    $response = wp_remote_post($endpoint, [
+      'timeout'   => apply_filters('ai_composer_firecrawl_timeout', 30),
+      'sslverify' => ! $is_local,
+      'headers'   => [
+        'Authorization' => 'Bearer ' . $api_key,
+        'Content-Type'  => 'application/json',
+      ],
+      'body' => wp_json_encode([
+        'url'             => $url,
+        'formats'         => ['markdown'],
+        'onlyMainContent' => true,
+      ]),
+    ]);
+
+    if (is_wp_error($response)) {
+      return new WP_Error(
+        'ai_composer_syndication_youtube_error',
+        sprintf(__('Could not fetch YouTube transcript: %s', 'wp-intelligence'), $response->get_error_message()),
+        ['status' => 502]
+      );
+    }
+
+    $status = (int) wp_remote_retrieve_response_code($response);
+    if ($status === 401 || $status === 403) {
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_auth',
+        __('Firecrawl API key is invalid or expired. Check your key in settings.', 'wp-intelligence'),
+        ['status' => $status]
+      );
+    }
+    if ($status === 429) {
+      return new WP_Error(
+        'ai_composer_syndication_firecrawl_rate',
+        __('Firecrawl rate limit reached. Wait a moment and try again.', 'wp-intelligence'),
+        ['status' => 429]
+      );
+    }
+    if ($status < 200 || $status >= 400) {
+      return new WP_Error(
+        'ai_composer_syndication_youtube_http',
+        sprintf(__('Firecrawl returned HTTP %d for YouTube URL.', 'wp-intelligence'), $status),
+        ['status' => $status >= 400 ? $status : 502]
+      );
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (! is_array($body) || empty($body['success'])) {
+      $error_msg = $body['error'] ?? __('Firecrawl could not extract content from this YouTube URL.', 'wp-intelligence');
+      return new WP_Error('ai_composer_syndication_youtube_fail', $error_msg, ['status' => 502]);
+    }
+
+    $data     = $body['data'] ?? [];
+    $metadata = $data['metadata'] ?? [];
+    $raw_markdown = trim((string) ($data['markdown'] ?? ''));
+
+    $transcript = self::extract_youtube_transcript($raw_markdown);
+
+    if (self::mb_len($transcript) < 100) {
+      $transcript = self::normalize_ws($raw_markdown);
+    }
+
+    if (self::mb_len($transcript) < 100) {
+      return new WP_Error(
+        'ai_composer_syndication_youtube_short',
+        __('Could not extract enough content from this YouTube video. The video may not have captions.', 'wp-intelligence'),
+        ['status' => 422]
+      );
+    }
+
+    if (self::mb_len($transcript) > 12000) {
+      $transcript = self::mb_cut($transcript, 0, 12000);
+    }
+
+    $title       = wp_strip_all_tags((string) ($metadata['ogTitle'] ?? $metadata['title'] ?? ''));
+    $description = wp_strip_all_tags((string) ($metadata['ogDescription'] ?? $metadata['description'] ?? ''));
+    $source_name = wp_strip_all_tags((string) ($metadata['ogSiteName'] ?? 'YouTube'));
+    $og_image    = trim((string) ($metadata['ogImage'] ?? ''));
+
+    return [
+      'url'            => $url,
+      'title'          => $title !== '' ? $title : 'YouTube video',
+      'description'    => $description,
+      'excerpt'        => wp_strip_all_tags(wp_trim_words(preg_replace('/\s+/', ' ', $transcript), 45, '...')),
+      'source_name'    => $source_name,
+      'published_date' => '',
+      'body_text'      => $transcript,
+      'og_image'       => $og_image,
+      '_via'           => 'youtube',
+      '_source_type'   => 'video',
+    ];
+  }
+
+  /**
+   * Extract clean transcript text from YouTube page markdown.
+   *
+   * Firecrawl returns the full page including 403 error blocks, sidebar
+   * recommendations, and comments. The transcript is embedded as lines
+   * following timestamp patterns (0:00, 1:23, 10:05).
+   */
+  private static function extract_youtube_transcript(string $markdown): string {
+    $lines   = explode("\n", $markdown);
+    $pieces  = [];
+    $count   = count($lines);
+
+    for ($i = 0; $i < $count; $i++) {
+      $line = trim($lines[$i]);
+
+      if (! preg_match('/^\d{1,2}:\d{2}$/', $line)) {
+        continue;
+      }
+
+      $j = $i + 1;
+      while ($j < $count && trim($lines[$j]) === '') {
+        $j++;
+      }
+
+      if ($j >= $count) {
+        break;
+      }
+
+      $text = trim($lines[$j]);
+      if ($text === '' || $text[0] === '[' || $text[0] === '!' || strlen($text) <= 3) {
+        $i = $j;
+        continue;
+      }
+
+      $text = (string) preg_replace('/\[.*?\]\(.*?\)/', '', $text);
+      $text = wp_strip_all_tags(trim($text));
+      if ($text !== '') {
+        $pieces[] = $text;
+      }
+      $i = $j;
+    }
+
+    return implode(' ', $pieces);
   }
 
   // ------------------------------------------------------------------
@@ -1126,7 +1409,7 @@ class AI_Composer_Syndication {
   // AI draft generation
   // ------------------------------------------------------------------
 
-  private function generate_draft(array $article, string $prompt = '', int $word_count = 600): array|WP_Error {
+  private function generate_draft(array $article, string $prompt = '', int $word_count = 600, string $mode = 'featured_in', string $reference_urls = '', array $target_fields = [], string $extra_context = ''): array|WP_Error {
     if (! $this->provider->is_available()) {
       return new WP_Error(
         'ai_composer_syndication_no_provider',
@@ -1138,8 +1421,27 @@ class AI_Composer_Syndication {
     $settings = AI_Composer_Settings::get_syndication_settings();
     $custom_prompt = trim((string) ($settings['system_prompt'] ?? ''));
 
-    $system_prompt = $custom_prompt !== '' ? $custom_prompt : $this->get_default_system_prompt($word_count);
-    $system_prompt = apply_filters('ai_composer_syndication_system_prompt', $system_prompt, $word_count);
+    $system_prompt = $custom_prompt !== '' ? $custom_prompt : $this->get_default_system_prompt($word_count, $mode);
+
+    $brand_context = trim((string) ($settings['brand_context'] ?? ''));
+    if ($brand_context !== '') {
+      $system_prompt .= "\n\nBrand context (follow these guidelines):\n" . $brand_context;
+    }
+
+    $training_urls_setting = trim((string) ($settings['training_urls'] ?? ''));
+    if ($training_urls_setting !== '') {
+      $style_urls = array_slice(array_filter(array_map('trim', explode("\n", $training_urls_setting))), 0, 10);
+      if (! empty($style_urls)) {
+        $system_prompt .= "\n\nStyle references (match the tone and structure of content at these URLs):\n- " . implode("\n- ", $style_urls);
+      }
+    }
+
+    $example_ids = array_slice(array_filter(array_map('absint', (array) ($settings['example_post_ids'] ?? []))), 0, 2);
+    if (! empty($example_ids)) {
+      $system_prompt .= "\n\nThe payload includes style_examples — match their tone, structure, and formatting closely.";
+    }
+
+    $system_prompt = apply_filters('ai_composer_syndication_system_prompt', $system_prompt, $word_count, $mode);
 
     $site_name = apply_filters(
       'ai_composer_syndication_site_name',
@@ -1148,6 +1450,7 @@ class AI_Composer_Syndication {
 
     $payload_data = [
       'site_name'        => sanitize_text_field($site_name),
+      'mode'             => $mode,
       'source_url'       => (string) ($article['url'] ?? ''),
       'source_title'     => (string) ($article['title'] ?? ''),
       'source_name'      => (string) ($article['source_name'] ?? ''),
@@ -1161,9 +1464,38 @@ class AI_Composer_Syndication {
       $payload_data['source_images'] = $article['images'];
     }
 
+    $ref_list = array_values(array_filter(array_map('trim', explode("\n", $reference_urls))));
+    if (! empty($ref_list)) {
+      $payload_data['reference_urls'] = array_slice($ref_list, 0, 5);
+    }
+
+    if (! empty($target_fields)) {
+      $payload_data['target_fields'] = $target_fields;
+    }
+
+    if (! empty($example_ids)) {
+      $examples = [];
+      foreach ($example_ids as $eid) {
+        $ep = get_post($eid);
+        if ($ep && $ep->post_status === 'publish') {
+          $examples[] = [
+            'title'   => $ep->post_title,
+            'content' => wp_strip_all_tags(wp_trim_words($ep->post_content, 500)),
+          ];
+        }
+      }
+      if (! empty($examples)) {
+        $payload_data['style_examples'] = $examples;
+      }
+    }
+
+    if (! empty($extra_context)) {
+      $payload_data['extra_context'] = $extra_context;
+    }
+
     $user_payload = wp_json_encode($payload_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-    $schema = $this->get_output_schema();
+    $schema = $this->get_output_schema(! empty($target_fields));
 
     $raw = $this->provider->generate($system_prompt, (string) $user_payload, $schema);
     if (is_wp_error($raw)) {
@@ -1205,21 +1537,40 @@ class AI_Composer_Syndication {
     $source_name = sanitize_text_field((string) ($article['source_name'] ?? ''));
     $link_label  = $source_name !== '' ? $source_name : $source_url;
 
+    if (($article['_source_type'] ?? '') === 'video' && $source_url !== '') {
+      $video_id = self::extract_youtube_video_id($source_url);
+      if ($video_id !== '') {
+        $embed = sprintf(
+          '<figure class="wp-block-embed is-type-video is-provider-youtube"><div class="wp-block-embed__wrapper"><iframe width="560" height="315" src="https://www.youtube.com/embed/%s" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%%;aspect-ratio:16/9;height:auto;"></iframe></div></figure>',
+          esc_attr($video_id)
+        );
+        $content_html = $embed . $content_html;
+      }
+    }
+
     if ($source_url !== '' && ! str_contains($content_html, $source_url)) {
       $content_html .= sprintf(
-        '<p><a href="%1$s" target="_blank" rel="noopener noreferrer nofollow"><strong>Read the full article on %2$s &rarr;</strong></a></p>',
+        '<p><a href="%1$s" target="_blank" rel="noopener noreferrer nofollow"><strong>%2$s</strong></a></p>',
         esc_url($source_url),
-        esc_html($link_label)
+        ($article['_source_type'] ?? '') === 'video'
+          ? esc_html__('Watch the full video &rarr;', 'wp-intelligence')
+          : esc_html(sprintf(__('Read the full article on %s &rarr;', 'wp-intelligence'), $link_label))
       );
     }
 
-    return [
+    $result = [
       'title'          => $title,
       'excerpt'        => $excerpt,
       'content_html'   => $content_html,
       'news_source'    => $news_source,
       'published_date' => $published,
     ];
+
+    if (! empty($content['field_values']) && is_array($content['field_values'])) {
+      $result['field_values'] = $content['field_values'];
+    }
+
+    return $result;
   }
 
   private function generate_fallback_draft(array $article): array {
@@ -1255,13 +1606,14 @@ class AI_Composer_Syndication {
     ];
   }
 
-  private function get_default_system_prompt(int $word_count = 600): string {
+  private function get_default_system_prompt(int $word_count = 600, string $mode = 'featured_in'): string {
     $lower = max(200, (int) round($word_count * 0.8));
     $upper = (int) round($word_count * 1.2);
 
+    $mode_instructions = $this->get_mode_instructions($mode);
+
     return <<<PROMPT
-You are a content editor writing "as featured in" newsroom posts that syndicate third-party media coverage.
-The payload includes a site_name field — this is the brand/company that was featured in the media article.
+You are a content editor. The payload includes mode, site_name, source text, and optionally reference_urls.
 Return valid JSON only.
 
 Required JSON shape:
@@ -1275,38 +1627,57 @@ Required JSON shape:
 }
 
 CRITICAL — Anti-hallucination rules:
-- ONLY use facts, statistics, quotes, and claims that appear in the provided source text.
+- ONLY use facts, statistics, quotes, and claims that appear in the provided source text or reference URLs.
 - NEVER invent, fabricate, or extrapolate data points, percentages, dollar amounts, or quotes.
 - NEVER attribute statements to people unless the source text explicitly quotes them.
 - If the source lacks specific data for a claim, omit the claim entirely rather than guessing.
-- When paraphrasing, stay faithful to the original meaning — do not editorialize or add analysis beyond what the source states.
+- When paraphrasing, stay faithful to the original meaning.
 
-Syndication framing:
-- The opening paragraph MUST frame this as media coverage of the site_name brand. Examples:
-  "[site_name] was recently featured in [source_name], discussing [topic]."
-  "[site_name]'s research was highlighted by [source_name] in a piece covering [topic]."
-  "In a recent article published by [source_name], [site_name] founder [person] shared insights on [topic]."
-- Use the actual site_name and source_name from the payload — never use placeholders.
-- The tone should position this as earned media coverage — authoritative, credible, and third-party validated.
-- If the source article quotes someone from the site_name organisation, lead with that angle.
+Citation rules:
+- When referencing specific facts, data, or quotes, cite the source inline using <a href="source_url" target="_blank" rel="noopener noreferrer nofollow">source_name</a>.
+- If reference_urls are provided, you may cross-reference them to enrich the content. Cite each reference used with an inline link.
+- At the end of the article, include a "Sources" section as an unordered list linking to every URL cited (source_url and any reference_urls used).
+
+{$mode_instructions}
 
 Content rules:
 - Write in Australian English with a professional, authoritative tone.
 - Aim for {$lower}–{$upper} words of content_html.
-- After the intro, structure the content with clear sections using h2/h3 headings (e.g. key findings, market data, expert commentary, outlook).
+- Structure the content with clear sections using h2/h3 headings.
 - Use clean semantic HTML for the WordPress block editor:
   allowed tags: p, h2, h3, ul, ol, li, strong, em, a, blockquote, figure, img, figcaption.
 - Preserve specific numbers, statistics, and direct quotes with attribution.
 - Use <blockquote> for direct quotes, followed by attribution text.
 - If source_images are provided, include up to 2 relevant article photos using <figure><img src="URL" alt="description"><figcaption>Credit/caption</figcaption></figure>. Omit logos, icons, ads, and UI screenshots.
-- End with a paragraph linking to the source_url: <a href="URL" target="_blank" rel="noopener noreferrer nofollow"><strong>Read the full article on SOURCE_NAME →</strong></a>
 - If an editor_prompt is provided, follow its guidance for tone, length, or focus.
 - Never include markdown fences or extra commentary outside JSON.
+
+ACF field mapping (if target_fields provided):
+- The payload may include a target_fields array with field name, label, type, and optional instructions.
+- For each target field, populate a field_values object in your JSON response: {"field_values": {"field_name": "value"}}.
+- Match the field type: text/email/url → string, number → numeric, textarea/wysiwyg → HTML string, true_false → true/false, select → one of the valid options, date_picker → YYYY-MM-DD, image → leave empty (images are handled separately).
+- If a field has an "instructions" property, follow those instructions precisely to determine the value (e.g. "Extract the client name", "Calculate total equity growth").
+- Derive values from the source content. If no appropriate value exists for a field, omit it from field_values.
+
+Additional context:
+- If extra_context is provided in the payload, use it as additional background information, research, or notes to enrich the content. Treat it as factual input alongside the source text.
+- If style_examples are provided, closely match their tone, structure, heading style, paragraph length, and formatting patterns.
 PROMPT;
   }
 
-  private function get_output_schema(): array {
-    return [
+  private function get_mode_instructions(string $mode): string {
+    $styles = AI_Composer_Settings::get_content_styles();
+    foreach ($styles as $style) {
+      if ($style['id'] === $mode && ! empty($style['prompt'])) {
+        return "Mode: " . $style['label'] . "\n" . $style['prompt'];
+      }
+    }
+
+    return "Mode: " . $mode . "\nWrite a well-structured article based on the source content.";
+  }
+
+  private function get_output_schema(bool $include_field_values = false): array {
+    $schema = [
       'type' => 'object',
       'properties' => [
         'title'          => ['type' => 'string'],
@@ -1319,6 +1690,68 @@ PROMPT;
       'required'             => ['title', 'excerpt', 'content_html', 'news_source', 'published_date', 'suggested_tags'],
       'additionalProperties' => false,
     ];
+
+    if ($include_field_values) {
+      $schema['properties']['field_values'] = [
+        'type' => 'object',
+        'description' => 'Values for the target_fields specified in the payload. Keys are field names.',
+      ];
+      $schema['additionalProperties'] = true;
+    }
+
+    return $schema;
+  }
+
+  /**
+   * Resolve selected field names to their ACF field metadata.
+   *
+   * @param string $selected_csv Comma-separated field names from the editor.
+   * @return list<array{name: string, label: string, type: string}>
+   */
+  private function resolve_selected_fields(string $selected_csv, int $post_id, array $instructions = []): array {
+    if ($selected_csv === '' || $post_id <= 0) {
+      return [];
+    }
+    if (! function_exists('acf_get_field_groups') || ! function_exists('acf_get_fields')) {
+      return [];
+    }
+
+    $wanted = array_filter(array_map('trim', explode(',', $selected_csv)));
+    if (empty($wanted)) {
+      return [];
+    }
+
+    $post_type = get_post_type($post_id);
+    if (! $post_type) {
+      return [];
+    }
+
+    $simple_types = ['text', 'textarea', 'wysiwyg', 'number', 'url', 'image', 'select', 'true_false', 'email', 'date_picker'];
+    $groups = acf_get_field_groups(['post_type' => $post_type]);
+    $result = [];
+
+    foreach ($groups as $group) {
+      $fields = acf_get_fields($group['key']);
+      if (! is_array($fields)) {
+        continue;
+      }
+      foreach ($fields as $field) {
+        if (in_array($field['name'], $wanted, true) && in_array($field['type'], $simple_types, true)) {
+          $entry = [
+            'name'  => $field['name'],
+            'label' => $field['label'],
+            'type'  => $field['type'],
+          ];
+          $hint = trim(sanitize_text_field((string) ($instructions[$field['name']] ?? '')));
+          if ($hint !== '') {
+            $entry['instructions'] = $hint;
+          }
+          $result[] = $entry;
+        }
+      }
+    }
+
+    return $result;
   }
 
   // ------------------------------------------------------------------

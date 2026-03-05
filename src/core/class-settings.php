@@ -277,7 +277,7 @@ class AI_Composer_Settings {
     $settings['api_key'] = sanitize_text_field((string) $settings['api_key']);
 
     if (! isset($settings['model']) || $settings['model'] === '') {
-      $settings['model'] = 'gpt-4.1';
+      $settings['model'] = 'gpt-5.2';
     }
     $settings['model'] = sanitize_text_field((string) $settings['model']);
 
@@ -369,6 +369,54 @@ class AI_Composer_Settings {
       $clean['firecrawl_api_key'] = sanitize_text_field((string) $input['firecrawl_api_key']);
     }
 
+    $brand = trim((string) ($input['brand_context'] ?? ''));
+    if ($brand !== '') {
+      $clean['brand_context'] = mb_substr(wp_kses_post($brand), 0, 5000);
+    }
+
+    $turls = trim((string) ($input['training_urls'] ?? ''));
+    if ($turls !== '') {
+      $lines = array_slice(array_filter(array_map('trim', explode("\n", $turls))), 0, 10);
+      $clean['training_urls'] = implode("\n", array_map('esc_url_raw', $lines));
+    }
+
+    if (isset($input['example_post_ids'])) {
+      $raw = is_array($input['example_post_ids'])
+        ? $input['example_post_ids']
+        : explode(',', (string) $input['example_post_ids']);
+      $clean['example_post_ids'] = array_slice(array_values(array_filter(array_map('absint', $raw))), 0, 5);
+    }
+
+    if (isset($input['output_format_defaults']) && is_array($input['output_format_defaults'])) {
+      $formats = [];
+      foreach ($input['output_format_defaults'] as $pt_name => $fmt) {
+        $pt_name = sanitize_key($pt_name);
+        $fmt = sanitize_key($fmt);
+        $formats[$pt_name] = in_array($fmt, ['blocks', 'wysiwyg'], true) ? $fmt : 'blocks';
+      }
+      $clean['output_format_defaults'] = $formats;
+    }
+
+    if (isset($input['content_styles']) && is_array($input['content_styles'])) {
+      $styles = [];
+      foreach ($input['content_styles'] as $style) {
+        if (! is_array($style)) continue;
+        $id = sanitize_key(trim((string) ($style['id'] ?? '')));
+        $label = sanitize_text_field(trim((string) ($style['label'] ?? '')));
+        $prompt = wp_kses_post(trim((string) ($style['prompt'] ?? '')));
+        $source = sanitize_key((string) ($style['source_type'] ?? 'all'));
+        if ($id === '' || $label === '') continue;
+        $styles[] = [
+          'id'          => $id,
+          'label'       => $label,
+          'prompt'      => $prompt,
+          'source_type' => in_array($source, ['all', 'url', 'video', 'text'], true) ? $source : 'all',
+          'builtin'     => ! empty($style['builtin']),
+        ];
+      }
+      $clean['content_styles'] = $styles;
+    }
+
     return $clean;
   }
 
@@ -415,6 +463,35 @@ class AI_Composer_Settings {
     }
 
     return $syndication;
+  }
+
+  public static function get_default_content_styles(): array {
+    return [
+      ['id' => 'featured_in',     'label' => 'As Featured In',   'source_type' => 'all',   'builtin' => true, 'prompt' => "The opening paragraph MUST frame this as media coverage of the site_name brand.\nUse the actual site_name and source_name from the payload.\nThe tone should position this as earned media coverage — authoritative, credible, and third-party validated.\nIf the source quotes someone from the site_name organisation, lead with that angle.\nEnd with a \"Read the full article\" link."],
+      ['id' => 'original_post',   'label' => 'Original Post',    'source_type' => 'all',   'builtin' => true, 'prompt' => "Write a fresh, standalone article based on the source content.\nDo NOT frame this as \"featured in\" or refer to the site_name being covered.\nWrite as if you are the publication — authoritative, informative, direct.\nUse the source material as research but write original prose.\nEnd with a source attribution paragraph."],
+      ['id' => 'summary',         'label' => 'Summary',          'source_type' => 'all',   'builtin' => true, 'prompt' => "Write a concise summary of the key points and takeaways.\nUse bullet points (ul/li) for the main findings.\nOpen with a 1-2 sentence overview, then list key takeaways.\nKeep it brief and scannable — aim for the lower end of the word count range.\nEnd with a link to the source."],
+      ['id' => 'commentary',      'label' => 'Commentary',       'source_type' => 'all',   'builtin' => true, 'prompt' => "Present the source findings and add professional commentary.\nFrame it as: \"Here's what was reported, and here's what it means.\"\nAfter summarising key points, add a \"What this means\" or \"Our take\" section.\nDo NOT invent new data — commentary should interpret existing facts.\nEnd with the source link."],
+      ['id' => 'video_recap',     'label' => 'Video Recap',      'source_type' => 'video', 'builtin' => true, 'prompt' => "Write a comprehensive article recapping the key points from the video transcript.\nOpen with context: what the video is about, who is speaking, and why it matters.\nStructure with clear h2/h3 sections following the video's narrative arc.\nInclude direct quotes from speakers using <blockquote>.\nEnd with a \"Watch the full video\" link."],
+      ['id' => 'video_takeaways', 'label' => 'Video Takeaways',  'source_type' => 'video', 'builtin' => true, 'prompt' => "Extract the most important points from the video as a scannable post.\nOpen with a 1-2 sentence overview.\nPresent key takeaways as a numbered list (ol/li) with brief explanations.\nQuote speakers directly where relevant.\nKeep it concise.\nEnd with a \"Watch the full video\" link."],
+    ];
+  }
+
+  public static function get_content_styles(): array {
+    $syn = self::get_syndication_settings();
+    $saved = (array) ($syn['content_styles'] ?? []);
+
+    if (empty($saved)) {
+      return self::get_default_content_styles();
+    }
+
+    $saved_ids = array_column($saved, 'id');
+    foreach (self::get_default_content_styles() as $default) {
+      if (! in_array($default['id'], $saved_ids, true)) {
+        $saved[] = $default;
+      }
+    }
+
+    return $saved;
   }
 
   public static function get_admin_experience_settings(): array {
@@ -498,7 +575,7 @@ class AI_Composer_Settings {
       'modules'     => __('Modules', 'wp-intelligence'),
       'ai'          => __('AI', 'wp-intelligence'),
       'ai_composer' => __('Composer', 'wp-intelligence'),
-      'syndication' => __('Syndication', 'wp-intelligence'),
+      'syndication' => __('Content Intelligence', 'wp-intelligence'),
     ];
 
     if (WPI_Module_Manager::is_active('block_visibility') && class_exists('WPI_Block_Visibility')) {
@@ -769,7 +846,7 @@ class AI_Composer_Settings {
 
   private static function render_provider_fields(string $option, array $settings): void {
     $api_key = $settings['api_key'] ?? '';
-    $model   = $settings['model'] ?? 'gpt-4.1';
+    $model   = $settings['model'] ?? 'gpt-5.2';
     $models  = apply_filters('ai_composer_available_models', [
       'gpt-5.2'      => 'GPT-5.2',
       'gpt-5.1'      => 'GPT-5.1',
@@ -785,7 +862,10 @@ class AI_Composer_Settings {
     <tr>
       <th scope="row"><label for="wpi_api_key"><?php esc_html_e('OpenAI API Key', 'wp-intelligence'); ?></label></th>
       <td>
-        <input type="password" id="wpi_api_key" name="<?php echo $option; ?>[api_key]" value="<?php echo esc_attr($api_key); ?>" class="regular-text" autocomplete="off">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="password" id="wpi_api_key" name="<?php echo $option; ?>[api_key]" value="<?php echo esc_attr($api_key); ?>" class="regular-text" autocomplete="off">
+          <button type="button" class="button button-small wpi-toggle-key" data-target="wpi_api_key"><?php esc_html_e('Show', 'wp-intelligence'); ?></button>
+        </div>
       </td>
     </tr>
     <tr>
@@ -928,7 +1008,7 @@ class AI_Composer_Settings {
 
   private static function render_syndication_tab(): void {
     if (! WPI_Module_Manager::is_active('syndication')) {
-      echo '<div class="notice notice-warning inline"><p>' . esc_html__('The Syndication module is disabled. Enable it on the Modules tab.', 'wp-intelligence') . '</p></div>';
+      echo '<div class="notice notice-warning inline"><p>' . esc_html__('The Content Intelligence module is disabled. Enable it on the Modules tab.', 'wp-intelligence') . '</p></div>';
       return;
     }
 
@@ -968,11 +1048,14 @@ class AI_Composer_Settings {
       <tr id="wpi-firecrawl-key-row" style="<?php echo $fetch_strategy !== 'firecrawl' ? 'opacity:0.5;' : ''; ?>">
         <th scope="row"><label for="wpi_firecrawl_key"><?php esc_html_e('Firecrawl API key', 'wp-intelligence'); ?></label></th>
         <td>
+          <div style="display:flex;align-items:center;gap:6px;">
           <input type="password" id="wpi_firecrawl_key"
             name="<?php echo $option; ?>[syndication][firecrawl_api_key]"
             value="<?php echo esc_attr($firecrawl_key); ?>"
             class="regular-text" autocomplete="off"
             placeholder="fc-...">
+          <button type="button" class="button button-small wpi-toggle-key" data-target="wpi_firecrawl_key"><?php esc_html_e('Show', 'wp-intelligence'); ?></button>
+          </div>
           <p class="description">
             <?php
             echo wp_kses(
@@ -990,20 +1073,32 @@ class AI_Composer_Settings {
     </tbody></table>
     <?php self::render_card_end(); ?>
 
-    <?php self::render_card_start(__('Content Syndication', 'wp-intelligence'), '', 'rss'); ?>
+    <?php self::render_card_start(__('Content Intelligence', 'wp-intelligence'), '', 'welcome-write-blog'); ?>
     <table class="form-table" role="presentation"><tbody>
       <tr>
         <th scope="row"><?php esc_html_e('Enabled post types', 'wp-intelligence'); ?></th>
         <td>
-          <?php foreach ($all_types as $pt) :
+          <?php
+          $output_defaults = (array) ($syn['output_format_defaults'] ?? []);
+          foreach ($all_types as $pt) :
             if ($pt->name === 'attachment') continue;
+            $checked = in_array($pt->name, $types, true);
+            $fmt = $output_defaults[$pt->name] ?? 'blocks';
           ?>
-            <label class="wpi-checkbox-row">
-              <input type="checkbox" name="<?php echo $option; ?>[syndication][enabled_post_types][]" value="<?php echo esc_attr($pt->name); ?>"
-                <?php checked(in_array($pt->name, $types, true)); ?>>
-              <?php echo esc_html($pt->label); ?> <code>(<?php echo esc_html($pt->name); ?>)</code>
-            </label>
+            <div class="wpi-checkbox-row" style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+              <label style="min-width:200px;">
+                <input type="checkbox" name="<?php echo $option; ?>[syndication][enabled_post_types][]" value="<?php echo esc_attr($pt->name); ?>"
+                  <?php checked($checked); ?>>
+                <?php echo esc_html($pt->label); ?> <code>(<?php echo esc_html($pt->name); ?>)</code>
+              </label>
+              <select name="<?php echo $option; ?>[syndication][output_format_defaults][<?php echo esc_attr($pt->name); ?>]"
+                style="min-width:100px;<?php echo ! $checked ? 'opacity:0.4;' : ''; ?>">
+                <option value="blocks" <?php selected($fmt, 'blocks'); ?>><?php esc_html_e('Blocks', 'wp-intelligence'); ?></option>
+                <option value="wysiwyg" <?php selected($fmt, 'wysiwyg'); ?>><?php esc_html_e('WYSIWYG', 'wp-intelligence'); ?></option>
+              </select>
+            </div>
           <?php endforeach; ?>
+          <p class="description"><?php esc_html_e('Select the default output format per post type. Can be overridden per-request in the editor.', 'wp-intelligence'); ?></p>
         </td>
       </tr>
       <tr>
@@ -1030,6 +1125,97 @@ class AI_Composer_Settings {
       </tr>
     </tbody></table>
     <?php self::render_card_end(); ?>
+
+    <?php
+    $brand_context    = esc_textarea((string) ($syn['brand_context'] ?? ''));
+    $training_urls    = esc_textarea((string) ($syn['training_urls'] ?? ''));
+    $example_post_ids = implode(', ', array_map('absint', (array) ($syn['example_post_ids'] ?? [])));
+    ?>
+
+    <?php self::render_card_start(__('Content Training', 'wp-intelligence'), __('Persistent context applied to every syndication request.', 'wp-intelligence'), 'welcome-learn-more'); ?>
+    <table class="form-table" role="presentation"><tbody>
+      <tr>
+        <th scope="row"><label><?php esc_html_e('Brand context & guidelines', 'wp-intelligence'); ?></label></th>
+        <td>
+          <textarea name="<?php echo $option; ?>[syndication][brand_context]" rows="6" class="large-text"
+            placeholder="<?php esc_attr_e("e.g.\n- Always use our full brand name, not abbreviations\n- Data-led, not data-driven\n- Professional but accessible tone\n- Australian English spelling", 'wp-intelligence'); ?>"
+          ><?php echo $brand_context; ?></textarea>
+          <p class="description"><?php esc_html_e('Tone of voice, key messaging, terminology rules, and brand facts. Injected into every syndication prompt.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label><?php esc_html_e('Style reference URLs', 'wp-intelligence'); ?></label></th>
+        <td>
+          <textarea name="<?php echo $option; ?>[syndication][training_urls]" rows="4" class="large-text code"
+            placeholder="<?php esc_attr_e("https://example.com/article-with-good-style\nhttps://example.com/another-reference", 'wp-intelligence'); ?>"
+          ><?php echo $training_urls; ?></textarea>
+          <p class="description"><?php esc_html_e('URLs whose tone and structure the AI should emulate. One per line, max 10. These are referenced by the model — not fetched at generation time.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label><?php esc_html_e('Example posts', 'wp-intelligence'); ?></label></th>
+        <td>
+          <input type="text" name="<?php echo $option; ?>[syndication][example_post_ids]"
+            value="<?php echo esc_attr($example_post_ids); ?>"
+            class="regular-text" placeholder="<?php esc_attr_e('e.g. 42, 108, 256', 'wp-intelligence'); ?>">
+          <p class="description"><?php esc_html_e('Comma-separated IDs of published posts to use as style examples (max 5). Their content is included in the AI payload so the model can match the style.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+    </tbody></table>
+    <?php self::render_card_end(); ?>
+
+    <?php
+    $styles = self::get_content_styles();
+    ?>
+    <?php self::render_card_start(__('Content Styles', 'wp-intelligence'), __('Manage the writing styles available in the editor. Edit built-in styles or create custom ones.', 'wp-intelligence'), 'art'); ?>
+    <div id="wpi-styles-list">
+    <?php foreach ($styles as $idx => $style) : ?>
+      <details class="wpi-style-row" style="border:1px solid #e0e0e0;border-radius:3px;margin-bottom:8px;background:#fff;">
+        <summary style="padding:10px 14px;cursor:pointer;font-weight:500;display:flex;align-items:center;gap:8px;">
+          <?php echo esc_html($style['label']); ?>
+          <?php if (! empty($style['builtin'])) : ?>
+            <span style="font-size:11px;color:#757575;font-weight:400;">(<?php esc_html_e('built-in', 'wp-intelligence'); ?>)</span>
+          <?php endif; ?>
+          <span style="font-size:11px;color:#757575;font-weight:400;margin-left:auto;"><?php echo esc_html($style['source_type']); ?></span>
+        </summary>
+        <div style="padding:10px 14px;border-top:1px solid #f0f0f0;">
+          <input type="hidden" name="<?php echo $option; ?>[syndication][content_styles][<?php echo $idx; ?>][id]" value="<?php echo esc_attr($style['id']); ?>">
+          <input type="hidden" name="<?php echo $option; ?>[syndication][content_styles][<?php echo $idx; ?>][builtin]" value="<?php echo $style['builtin'] ? '1' : '0'; ?>">
+          <table class="form-table" role="presentation" style="margin:0;"><tbody>
+            <tr>
+              <th style="width:120px;padding:6px 0;"><label><?php esc_html_e('Label', 'wp-intelligence'); ?></label></th>
+              <td style="padding:6px 0;">
+                <input type="text" name="<?php echo $option; ?>[syndication][content_styles][<?php echo $idx; ?>][label]" value="<?php echo esc_attr($style['label']); ?>" class="regular-text">
+              </td>
+            </tr>
+            <tr>
+              <th style="width:120px;padding:6px 0;"><label><?php esc_html_e('Source type', 'wp-intelligence'); ?></label></th>
+              <td style="padding:6px 0;">
+                <select name="<?php echo $option; ?>[syndication][content_styles][<?php echo $idx; ?>][source_type]">
+                  <option value="all" <?php selected($style['source_type'], 'all'); ?>><?php esc_html_e('All sources', 'wp-intelligence'); ?></option>
+                  <option value="url" <?php selected($style['source_type'], 'url'); ?>><?php esc_html_e('URLs only', 'wp-intelligence'); ?></option>
+                  <option value="video" <?php selected($style['source_type'], 'video'); ?>><?php esc_html_e('Videos only', 'wp-intelligence'); ?></option>
+                  <option value="text" <?php selected($style['source_type'], 'text'); ?>><?php esc_html_e('Text/file only', 'wp-intelligence'); ?></option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <th style="width:120px;padding:6px 0;"><label><?php esc_html_e('Instructions', 'wp-intelligence'); ?></label></th>
+              <td style="padding:6px 0;">
+                <textarea name="<?php echo $option; ?>[syndication][content_styles][<?php echo $idx; ?>][prompt]" rows="5" class="large-text code"><?php echo esc_textarea($style['prompt']); ?></textarea>
+                <p class="description"><?php esc_html_e('System prompt instructions for this style. Injected into the AI as mode-specific rules.', 'wp-intelligence'); ?></p>
+              </td>
+            </tr>
+          </tbody></table>
+        </div>
+      </details>
+    <?php endforeach; ?>
+    </div>
+    <p>
+      <button type="button" class="button" id="wpi-add-style"><?php esc_html_e('+ Add custom style', 'wp-intelligence'); ?></button>
+    </p>
+    <?php self::render_card_end(); ?>
+
     <?php
   }
 

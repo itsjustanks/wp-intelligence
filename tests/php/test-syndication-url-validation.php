@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
-require_once dirname(__DIR__, 2) . '/src/features/syndication/class-syndication.php';
+require_once dirname(__DIR__, 2) . '/src/features/content-intelligence/class-syndication.php';
 
 wpi_test_assert_true(
   AI_Composer_Syndication::validate_url('https://example.com/news/story'),

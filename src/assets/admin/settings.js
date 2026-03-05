@@ -157,7 +157,7 @@
       var selected = 'builtin';
       radios.forEach(function (r) { if (r.checked) selected = r.value; });
       keyRow.style.opacity = selected === 'firecrawl' ? '1' : '0.5';
-      var input = keyRow.querySelector('input[type="password"]');
+      var input = keyRow.querySelector('input[type="password"], input[type="text"]');
       if (input) {
         input.required = selected === 'firecrawl';
       }
@@ -167,9 +167,59 @@
     toggle();
   }
 
+  function initKeyToggleButtons() {
+    document.addEventListener('click', function (e) {
+      if (!e.target.classList.contains('wpi-toggle-key')) return;
+      var btn = e.target;
+      var input = document.getElementById(btn.getAttribute('data-target'));
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = l10n.hideLabel || 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = l10n.showLabel || 'Show';
+      }
+    });
+  }
+
+  function initAddStyleButton() {
+    var btn = document.getElementById('wpi-add-style');
+    var list = document.getElementById('wpi-styles-list');
+    if (!btn || !list) return;
+
+    var optionName = 'ai_composer_settings';
+
+    btn.addEventListener('click', function () {
+      var idx = list.querySelectorAll('.wpi-style-row').length;
+      var id = 'custom_' + Date.now();
+      var html =
+        '<details class="wpi-style-row" open style="border:1px solid #e0e0e0;border-radius:3px;margin-bottom:8px;background:#fff;">' +
+          '<summary style="padding:10px 14px;cursor:pointer;font-weight:500;display:flex;align-items:center;gap:8px;">New custom style</summary>' +
+          '<div style="padding:10px 14px;border-top:1px solid #f0f0f0;">' +
+            '<input type="hidden" name="' + optionName + '[syndication][content_styles][' + idx + '][id]" value="' + id + '">' +
+            '<input type="hidden" name="' + optionName + '[syndication][content_styles][' + idx + '][builtin]" value="0">' +
+            '<table class="form-table" role="presentation" style="margin:0;"><tbody>' +
+              '<tr><th style="width:120px;padding:6px 0;"><label>Label</label></th>' +
+              '<td style="padding:6px 0;"><input type="text" name="' + optionName + '[syndication][content_styles][' + idx + '][label]" value="" class="regular-text" placeholder="e.g. Press Release"></td></tr>' +
+              '<tr><th style="width:120px;padding:6px 0;"><label>Source type</label></th>' +
+              '<td style="padding:6px 0;"><select name="' + optionName + '[syndication][content_styles][' + idx + '][source_type]">' +
+                '<option value="all">All sources</option><option value="url">URLs only</option><option value="video">Videos only</option><option value="text">Text/file only</option>' +
+              '</select></td></tr>' +
+              '<tr><th style="width:120px;padding:6px 0;"><label>Instructions</label></th>' +
+              '<td style="padding:6px 0;"><textarea name="' + optionName + '[syndication][content_styles][' + idx + '][prompt]" rows="5" class="large-text code" placeholder="System prompt instructions for this style..."></textarea></td></tr>' +
+            '</tbody></table>' +
+          '</div>' +
+        '</details>';
+      list.insertAdjacentHTML('beforeend', html);
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     initBlockSelector();
     initResourceHintRows();
     initFetchStrategyToggle();
+    initKeyToggleButtons();
+    initAddStyleButton();
   });
 })();
