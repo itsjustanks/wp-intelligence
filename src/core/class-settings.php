@@ -280,6 +280,14 @@ class AI_Composer_Settings {
         : [];
     }
 
+    if (! empty($input['_mcp_context_submitted'])) {
+      $clean['mcp_context_enabled'] = ! empty($input['mcp_context_enabled']) ? '1' : '0';
+      $url = trim((string) ($input['mcp_server_url'] ?? ''));
+      $clean['mcp_server_url'] = $url !== '' ? esc_url_raw($url) : '';
+      $ttl = absint($input['mcp_cache_ttl'] ?? 3600);
+      $clean['mcp_cache_ttl'] = max(60, min(86400, $ttl));
+    }
+
     return self::normalize_settings($clean);
   }
 
@@ -347,6 +355,16 @@ class AI_Composer_Settings {
       ? array_map('sanitize_text_field', $settings['enabled_blocks'])
       : [];
     $settings['enabled_blocks'] = array_values(array_unique(array_merge($selected, self::get_forced_enabled_blocks())));
+
+    if (! isset($settings['mcp_server_url'])) {
+      $settings['mcp_server_url'] = '';
+    }
+    if (! isset($settings['mcp_cache_ttl'])) {
+      $settings['mcp_cache_ttl'] = 3600;
+    }
+    if (! isset($settings['mcp_context_enabled'])) {
+      $settings['mcp_context_enabled'] = '0';
+    }
 
     return $settings;
   }
@@ -610,6 +628,20 @@ class AI_Composer_Settings {
     return (string) (self::get_settings()['system_prompt_append'] ?? '');
   }
 
+  public static function get_mcp_server_url(): string {
+    $url = apply_filters('ai_composer_mcp_server_url', (string) (self::get_settings()['mcp_server_url'] ?? ''));
+    return is_string($url) ? trim($url) : '';
+  }
+
+  public static function get_mcp_cache_ttl(): int {
+    $ttl = (int) (self::get_settings()['mcp_cache_ttl'] ?? 3600);
+    return (int) apply_filters('ai_composer_mcp_cache_ttl', max(60, $ttl));
+  }
+
+  public static function is_mcp_context_enabled(): bool {
+    return (self::get_settings()['mcp_context_enabled'] ?? '0') === '1';
+  }
+
   /* ──────────────────────────────────────────────
    *  Page rendering
    * ────────────────────────────────────────────── */
@@ -649,6 +681,10 @@ class AI_Composer_Settings {
 
     if (WPI_Module_Manager::is_active('block_visibility') && class_exists('WPI_Block_Visibility')) {
       $tabs['visibility'] = __('Visibility', 'wp-intelligence');
+    }
+
+    if (WPI_Module_Manager::is_active('dynamic_data') && class_exists('WPI_Dynamic_Data')) {
+      $tabs['dynamic_data'] = __('Dynamic Data', 'wp-intelligence');
     }
 
     $module_tabs = [
@@ -719,6 +755,11 @@ class AI_Composer_Settings {
               break;
             case 'featured_image_ai':
               self::render_featured_image_ai_tab();
+              break;
+            case 'dynamic_data':
+              if (class_exists('WPI_Dynamic_Data')) {
+                WPI_Dynamic_Data::render_settings_tab();
+              }
               break;
             case 'security':
               if (class_exists('WPI_Security')) {
@@ -882,10 +923,11 @@ class AI_Composer_Settings {
       echo '<p>' . esc_html__('WordPress native AI Client is available on this site.', 'wp-intelligence') . '</p>';
       echo '<p class="description">' . esc_html__('Provider credentials are managed in Settings -> AI Credentials. WP Intelligence modules will use that runtime automatically.', 'wp-intelligence') . '</p>';
       self::render_card_end();
-      return;
+    } else {
+      self::render_provider_fields($option, $settings);
     }
 
-    self::render_provider_fields($option, $settings);
+    self::render_context_provider_fields($option, $settings);
   }
 
   /* ──────────────────────────────────────────────
@@ -983,6 +1025,55 @@ class AI_Composer_Settings {
         <th scope="row"><label><?php esc_html_e('System Prompt (append)', 'wp-intelligence'); ?></label></th>
         <td>
           <textarea name="<?php echo $option; ?>[system_prompt_append]" rows="5" class="large-text code" placeholder="<?php esc_attr_e('Instructions appended after base prompt rules.', 'wp-intelligence'); ?>"><?php echo esc_textarea($append); ?></textarea>
+        </td>
+      </tr>
+    </tbody></table>
+    <?php self::render_card_end(); ?>
+    <?php
+  }
+
+  private static function render_context_provider_fields(string $option, array $settings): void {
+    $enabled   = ($settings['mcp_context_enabled'] ?? '0') === '1';
+    $url       = $settings['mcp_server_url'] ?? '';
+    $cache_ttl = (int) ($settings['mcp_cache_ttl'] ?? 3600);
+
+    ?>
+    <input type="hidden" name="<?php echo $option; ?>[_mcp_context_submitted]" value="1">
+
+    <?php self::render_card_start(__('Context Provider (MCP)', 'wp-intelligence'), __('Connect to an MCP server to enrich AI features with brand context, proof points, and guidelines.', 'wp-intelligence'), 'database'); ?>
+    <table class="form-table" role="presentation"><tbody>
+      <tr>
+        <th scope="row"><?php esc_html_e('Enable MCP context', 'wp-intelligence'); ?></th>
+        <td>
+          <label>
+            <input type="checkbox" name="<?php echo $option; ?>[mcp_context_enabled]" value="1" <?php checked($enabled); ?>>
+            <?php esc_html_e('Load context from an MCP server for all AI features.', 'wp-intelligence'); ?>
+          </label>
+          <p class="description"><?php esc_html_e('When disabled, AI features fall back to theme context directory files.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_mcp_url"><?php esc_html_e('MCP Server URL', 'wp-intelligence'); ?></label></th>
+        <td>
+          <input type="url" id="wpi_mcp_url" name="<?php echo $option; ?>[mcp_server_url]"
+            value="<?php echo esc_attr($url); ?>" class="regular-text"
+            placeholder="<?php esc_attr_e('e.g. http://localhost:3000/api/mcp', 'wp-intelligence'); ?>">
+          <p class="description">
+            <?php esc_html_e('Streamable HTTP endpoint of your MCP context server. Leave empty to use file-based context only.', 'wp-intelligence'); ?>
+            <?php if ($enabled && $url !== '') : ?>
+              <br><code><?php esc_html_e('Filter:', 'wp-intelligence'); ?> ai_composer_mcp_server_url</code>
+            <?php endif; ?>
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_mcp_ttl"><?php esc_html_e('Cache TTL', 'wp-intelligence'); ?></label></th>
+        <td>
+          <input type="number" id="wpi_mcp_ttl" name="<?php echo $option; ?>[mcp_cache_ttl]"
+            value="<?php echo esc_attr($cache_ttl); ?>"
+            min="60" max="86400" step="60" style="width:120px;">
+          <span><?php esc_html_e('seconds', 'wp-intelligence'); ?></span>
+          <p class="description"><?php esc_html_e('How long to cache context from the MCP server. Default: 3600 (1 hour).', 'wp-intelligence'); ?></p>
         </td>
       </tr>
     </tbody></table>

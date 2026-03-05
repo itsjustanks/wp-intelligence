@@ -105,30 +105,21 @@ PROMPT;
       $prompt .= "\n\nThe user is currently on admin page: {$context['admin_page']}";
     }
 
-    $settings = class_exists('AI_Composer_Settings') ? AI_Composer_Settings::get_syndication_settings() : [];
-    $brand = trim((string) ($settings['brand_context'] ?? ''));
-    if ($brand !== '') {
-      $prompt .= "\n\nBrand context:\n" . $brand;
-    }
+    if (class_exists('AI_Composer_Context_Provider')) {
+      $brand_voice = AI_Composer_Context_Provider::get_brand_voice();
+      if ($brand_voice !== '') {
+        $prompt .= "\n\n" . $brand_voice;
+      }
 
-    $theme_ctx_dir = apply_filters(
-      'ai_composer_context_directory',
-      get_stylesheet_directory() . '/content-intelligence/context'
-    );
-    if (is_dir($theme_ctx_dir)) {
-      $files = glob($theme_ctx_dir . '/*.{txt,md}', GLOB_BRACE);
-      if (is_array($files) && ! empty($files)) {
-        sort($files);
-        $chunks = [];
-        foreach (array_slice($files, 0, 10) as $f) {
-          $txt = trim((string) file_get_contents($f));
-          if ($txt !== '' && strlen($txt) < 10000) {
-            $chunks[] = '--- ' . basename($f) . " ---\n" . $txt;
-          }
-        }
-        if (! empty($chunks)) {
-          $prompt .= "\n\nSite context:\n" . implode("\n\n", $chunks);
-        }
+      $site_context = AI_Composer_Context_Provider::get_context();
+      if ($site_context !== '' && $site_context !== $brand_voice) {
+        $prompt .= "\n\n" . $site_context;
+      }
+    } else {
+      $settings = class_exists('AI_Composer_Settings') ? AI_Composer_Settings::get_syndication_settings() : [];
+      $brand = trim((string) ($settings['brand_context'] ?? ''));
+      if ($brand !== '') {
+        $prompt .= "\n\nBrand context:\n" . $brand;
       }
     }
 

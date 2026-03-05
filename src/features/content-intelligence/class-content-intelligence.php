@@ -1439,23 +1439,31 @@ class AI_Composer_Syndication {
       }
     }
 
-    $theme_context_dir = apply_filters(
-      'ai_composer_context_directory',
-      get_stylesheet_directory() . '/content-intelligence/context'
-    );
-    if (is_dir($theme_context_dir)) {
-      $ctx_files = glob($theme_context_dir . '/*.{txt,md}', GLOB_BRACE);
-      if (is_array($ctx_files) && ! empty($ctx_files)) {
-        sort($ctx_files);
-        $ctx_chunks = [];
-        foreach (array_slice($ctx_files, 0, 10) as $ctx_file) {
-          $ctx_text = trim((string) file_get_contents($ctx_file));
-          if ($ctx_text !== '' && strlen($ctx_text) < 10000) {
-            $ctx_chunks[] = '--- ' . basename($ctx_file) . " ---\n" . $ctx_text;
+    if (class_exists('AI_Composer_Context_Provider')) {
+      $task_type = AI_Composer_Context_Provider::syndication_mode_to_task($mode);
+      $task_context = AI_Composer_Context_Provider::get_context_for_task($task_type);
+      if ($task_context !== '') {
+        $system_prompt .= "\n\nContent context (follow these guidelines):\n" . $task_context;
+      }
+    } else {
+      $theme_context_dir = apply_filters(
+        'ai_composer_context_directory',
+        get_stylesheet_directory() . '/content-intelligence/context'
+      );
+      if (is_dir($theme_context_dir)) {
+        $ctx_files = glob($theme_context_dir . '/*.{txt,md}', GLOB_BRACE);
+        if (is_array($ctx_files) && ! empty($ctx_files)) {
+          sort($ctx_files);
+          $ctx_chunks = [];
+          foreach (array_slice($ctx_files, 0, 10) as $ctx_file) {
+            $ctx_text = trim((string) file_get_contents($ctx_file));
+            if ($ctx_text !== '' && strlen($ctx_text) < 10000) {
+              $ctx_chunks[] = '--- ' . basename($ctx_file) . " ---\n" . $ctx_text;
+            }
           }
-        }
-        if (! empty($ctx_chunks)) {
-          $system_prompt .= "\n\nTheme context (follow these guidelines):\n" . implode("\n\n", $ctx_chunks);
+          if (! empty($ctx_chunks)) {
+            $system_prompt .= "\n\nTheme context (follow these guidelines):\n" . implode("\n\n", $ctx_chunks);
+          }
         }
       }
     }

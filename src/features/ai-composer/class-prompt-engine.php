@@ -32,6 +32,11 @@ class AI_Composer_Prompt_Engine {
       $sections[] = $theme_strategy;
     }
 
+    $brand_context = $this->get_brand_context_section();
+    if ($brand_context !== '') {
+      $sections[] = $brand_context;
+    }
+
     $sections[] = $this->get_rules_section();
     $sections[] = $this->get_output_format_section();
 
@@ -355,6 +360,21 @@ PROMPT;
     $lines[] = 'When using Nectar blocks, keep nesting shallow and content focused inside column containers.';
 
     return implode("\n", $lines);
+  }
+
+  private function get_brand_context_section(): string {
+    if (! class_exists('AI_Composer_Context_Provider')) {
+      return '';
+    }
+
+    $context = AI_Composer_Context_Provider::get_brand_voice();
+    $context = apply_filters('ai_composer_composer_context', $context);
+
+    if (! is_string($context) || trim($context) === '') {
+      return '';
+    }
+
+    return "## Brand & Site Context\n\nFollow these brand guidelines when composing content:\n\n" . trim($context);
   }
 
   private function is_nectar_ecosystem(): bool {
