@@ -11,6 +11,8 @@ class WPI_AI_Chat {
 
   private static ?self $instance = null;
 
+  private const PAGE_SLUG = 'wpi-ask-ai';
+
   public function __construct(AI_Composer_Provider $provider) {
     $this->provider = $provider;
     $this->storage  = new WPI_Chat_Storage();
@@ -37,15 +39,38 @@ class WPI_AI_Chat {
 
   private function register_hooks(): void {
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
-    add_action('admin_bar_menu', [$this, 'add_admin_bar_button'], 999);
+    add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
+    add_action('admin_bar_menu', [$this, 'add_admin_bar_button'], 5);
     add_action('rest_api_init', [$this, 'register_rest_routes']);
+    add_action('admin_menu', [$this, 'add_admin_page']);
   }
 
+  /**
+   * Enqueue chat assets on all admin pages.
+   */
   public function enqueue_admin_assets(): void {
     if (! current_user_can('edit_posts') || ! $this->provider->is_available()) {
       return;
     }
 
+    $this->enqueue_chat_assets();
+  }
+
+  /**
+   * Enqueue chat assets on the frontend when the admin bar is visible.
+   */
+  public function enqueue_frontend_assets(): void {
+    if (! is_admin_bar_showing()) {
+      return;
+    }
+    if (! current_user_can('edit_posts') || ! $this->provider->is_available()) {
+      return;
+    }
+
+    $this->enqueue_chat_assets();
+  }
+
+  private function enqueue_chat_assets(): void {
     $js_path = __DIR__ . '/editor/ai-chat.js';
     $js_url  = defined('WPI_URL') ? WPI_URL . 'src/features/ai-chat/editor/ai-chat.js' : '';
 
@@ -80,29 +105,60 @@ class WPI_AI_Chat {
       );
     }
 
+    $is_fullscreen = is_admin()
+      && isset($_GET['page'])
+      && sanitize_key((string) $_GET['page']) === self::PAGE_SLUG;
+
     wp_localize_script('wpi-ai-chat', 'wpiAiChatConfig', [
       'restNamespace' => 'ai-composer/v1',
       'nonce'         => wp_create_nonce('wp_rest'),
       'siteUrl'       => home_url(),
       'siteName'      => get_bloginfo('name'),
       'hasProvider'   => $this->provider->is_available(),
+      'isFullscreen'  => $is_fullscreen,
+      'pageUrl'       => admin_url('admin.php?page=' . self::PAGE_SLUG),
     ]);
   }
 
+  /**
+   * Add "Ask AI" to the RIGHT side of the admin bar.
+   */
   public function add_admin_bar_button(\WP_Admin_Bar $admin_bar): void {
     if (! current_user_can('edit_posts') || ! $this->provider->is_available()) {
       return;
     }
 
     $admin_bar->add_node([
-      'id'    => 'wpi-ai-chat-toggle',
-      'title' => '<span class="ab-icon dashicons dashicons-format-chat"></span><span class="ab-label">' . esc_html__('Ask AI', 'wp-intelligence') . '</span>',
-      'href'  => '#',
-      'meta'  => [
-        'class'   => 'wpi-ai-chat-trigger',
-        'onclick' => 'if(window.wpiAiChatToggle){window.wpiAiChatToggle();return false;}return false;',
+      'id'     => 'wpi-ai-chat-toggle',
+      'parent' => 'top-secondary',
+      'title'  => '<span class="ab-icon dashicons dashicons-format-chat"></span><span class="ab-label">' . esc_html__('Ask AI', 'wp-intelligence') . '</span>',
+      'href'   => admin_url('admin.php?page=' . self::PAGE_SLUG),
+      'meta'   => [
+        'class' => 'wpi-ai-chat-trigger',
+        'title' => __('Open AI Chat', 'wp-intelligence'),
       ],
     ]);
+  }
+
+  /**
+   * Register the standalone Ask AI admin page.
+   */
+  public function add_admin_page(): void {
+    add_submenu_page(
+      'wp-intelligence',
+      __('Ask AI', 'wp-intelligence'),
+      __('Ask AI', 'wp-intelligence'),
+      apply_filters('ai_composer_capability', 'edit_posts'),
+      self::PAGE_SLUG,
+      [$this, 'render_admin_page']
+    );
+  }
+
+  /**
+   * Render the standalone fullscreen Ask AI page.
+   */
+  public function render_admin_page(): void {
+    echo '<div id="wpi-ask-ai-page"></div>';
   }
 
   public function register_rest_routes(): void {
