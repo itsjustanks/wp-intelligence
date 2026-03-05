@@ -2,6 +2,7 @@ import {
 	VIEWPORTS,
 	state, refs,
 	viewportByKey, getEditorVisual, getEditorStylesWrapper,
+	getContentSelector, getEditorIframe,
 } from './state';
 import { pauseMirrorVideos } from './editor-iframe';
 
@@ -12,6 +13,20 @@ const MIRROR_PREVIEW_CSS =
 	'*::selection{background:transparent!important}';
 
 const MIN_MIRROR_HEIGHT = 400;
+
+function injectContentListener( doc ) {
+	if ( ! doc?.body ) {
+		return;
+	}
+	const sel = getContentSelector();
+	const script = doc.createElement( 'script' );
+	script.textContent =
+		'window.addEventListener("message",function(e){' +
+		'if(!e.data||e.data.type!=="wpi-content")return;' +
+		'var el=document.querySelector(' + JSON.stringify( sel ) + ');' +
+		'if(el)el.innerHTML=e.data.html;});';
+	doc.body.appendChild( script );
+}
 
 function getPreviewUrl() {
 	try {
@@ -188,6 +203,111 @@ export function removeCanvasRow() {
 		refs.canvasRowEl = null;
 	}
 	refs.mirrorFrames = [];
+	refs.backdropEl = null;
+	refs.topSpacerEl = null;
+	refs.bottomSpacerEl = null;
+}
+
+function setupBackdrop( viewport, vp ) {
+	const previewUrl = getPreviewUrl();
+	if ( ! previewUrl ) {
+		return;
+	}
+
+	const backdrop = document.createElement( 'iframe' );
+	backdrop.className = 'wpi-canvas-frame__backdrop';
+	backdrop.setAttribute( 'title', 'Page chrome' );
+	backdrop.setAttribute( 'tabindex', '-1' );
+	backdrop.setAttribute( 'aria-hidden', 'true' );
+	backdrop.style.width = vp.previewWidth + 'px';
+	backdrop.style.height = vp.previewHeight + 'px';
+	refs.backdropEl = backdrop;
+
+	backdrop.addEventListener( 'load', () => {
+		try {
+			const doc = backdrop.contentDocument;
+			if ( ! doc?.body ) {
+				return;
+			}
+
+			const style = doc.createElement( 'style' );
+			style.textContent = MIRROR_PREVIEW_CSS;
+			doc.head.appendChild( style );
+
+			injectContentListener( doc );
+
+			const sel = getContentSelector();
+			const contentArea = doc.querySelector( sel );
+			if ( ! contentArea ) {
+				return;
+			}
+
+			const rect = contentArea.getBoundingClientRect();
+			const headerH = rect.top;
+			const pageH = Math.max(
+				doc.documentElement.scrollHeight,
+				doc.body.scrollHeight
+			);
+			const footerH = Math.max( 0, pageH - rect.bottom );
+
+			contentArea.style.visibility = 'hidden';
+
+			backdrop.style.height = pageH + 'px';
+
+			if ( refs.topSpacerEl ) {
+				refs.topSpacerEl.style.height = headerH + 'px';
+			}
+			if ( refs.bottomSpacerEl ) {
+				refs.bottomSpacerEl.style.height = footerH + 'px';
+			}
+
+			syncBackdropContentHeight();
+		} catch ( e ) {} // eslint-disable-line no-empty
+	} );
+
+	backdrop.addEventListener( 'error', () => {
+		backdrop.remove();
+		refs.backdropEl = null;
+	} );
+
+	backdrop.src = previewUrl;
+	viewport.insertBefore( backdrop, viewport.firstChild );
+}
+
+function syncBackdropContentHeight() {
+	if ( ! refs.backdropEl ) {
+		return;
+	}
+	try {
+		const doc = refs.backdropEl.contentDocument;
+		if ( ! doc ) {
+			return;
+		}
+		const sel = getContentSelector();
+		const contentArea = doc.querySelector( sel );
+		if ( ! contentArea ) {
+			return;
+		}
+
+		const editorIframe = getEditorIframe();
+		const editorH = editorIframe
+			? Math.max( 600, editorIframe.getBoundingClientRect().height )
+			: 600;
+
+		contentArea.style.minHeight = editorH + 'px';
+
+		const pageH = Math.max(
+			doc.documentElement.scrollHeight,
+			doc.body.scrollHeight
+		);
+		refs.backdropEl.style.height = pageH + 'px';
+
+		const rect = contentArea.getBoundingClientRect();
+		if ( refs.bottomSpacerEl ) {
+			refs.bottomSpacerEl.style.height =
+				Math.max( 0, pageH - rect.bottom ) + 'px';
+		}
+	} catch ( e ) {} // eslint-disable-line no-empty
 }
 
 function createLiveFrame( vp, options ) {
@@ -211,10 +331,25 @@ function createLiveFrame( vp, options ) {
 	viewport.className = 'wpi-canvas-frame__viewport';
 	viewport.style.width = vp.previewWidth + 'px';
 	viewport.style.minHeight = vp.previewHeight + 'px';
+	viewport.style.position = 'relative';
+
+	const topSpacer = document.createElement( 'div' );
+	topSpacer.className = 'wpi-canvas-frame__spacer wpi-canvas-frame__spacer--top';
+	refs.topSpacerEl = topSpacer;
+
+	const bottomSpacer = document.createElement( 'div' );
+	bottomSpacer.className = 'wpi-canvas-frame__spacer wpi-canvas-frame__spacer--bottom';
+	refs.bottomSpacerEl = bottomSpacer;
 
 	refs.editorVisualEl.parentNode?.removeChild( refs.editorVisualEl );
+
+	viewport.appendChild( topSpacer );
 	viewport.appendChild( refs.editorVisualEl );
+	viewport.appendChild( bottomSpacer );
 	frame.appendChild( viewport );
+
+	setupBackdrop( viewport, vp );
+
 	return frame;
 }
 
@@ -254,6 +389,8 @@ function createMirrorFrame( vp, previewUrl, onSwitch, onLoaded ) {
 				style.setAttribute( 'data-wpi-canvas-mirror', '' );
 				style.textContent = MIRROR_PREVIEW_CSS;
 				mirrorDoc.head.appendChild( style );
+
+				injectContentListener( mirrorDoc );
 			}
 		} catch ( e ) {} // eslint-disable-line no-empty
 		setTimeout( () => autoResizeMirror( mirrorItem ), 300 );
@@ -313,4 +450,4 @@ export function rebuildCanvasFrames( onSwitchViewport, options = {} ) {
 	} );
 }
 
-export { syncMirrorBodies };
+export { syncMirrorBodies, syncBackdropContentHeight, getPreviewUrl };

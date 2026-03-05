@@ -6,6 +6,7 @@ import { subscribe } from '@wordpress/data';
 import {
 	state, refs,
 	getContentArea, getEditorVisual,
+	getEditorStylesWrapper, getEditorDoc,
 } from './state';
 import {
 	initPanzoom,
@@ -19,6 +20,7 @@ import {
 	waitForEditorReady,
 	rebuildCanvasFrames,
 	syncMirrorBodies,
+	syncBackdropContentHeight,
 	stopMirrorObserver,
 	removeCanvasRow,
 	updatePlayButton,
@@ -61,6 +63,76 @@ function startSaveWatcher() {
 function stopSaveWatcher() {
 	_saveWatcher?.();
 	_saveWatcher = null;
+}
+
+function pushContentToFrames() {
+	const wrapper = getEditorStylesWrapper();
+	if ( ! wrapper ) {
+		return;
+	}
+	const html = wrapper.innerHTML;
+	const msg = { type: 'wpi-content', html };
+
+	refs.mirrorFrames.forEach( ( item ) => {
+		try {
+			item.iframeEl?.contentWindow?.postMessage( msg, '*' );
+		} catch ( e ) {} // eslint-disable-line no-empty
+	} );
+
+	try {
+		refs.backdropEl?.contentWindow?.postMessage( msg, '*' );
+	} catch ( e ) {} // eslint-disable-line no-empty
+
+	syncBackdropContentHeight();
+}
+
+function startContentPush() {
+	stopContentPush();
+	const wrapper = getEditorStylesWrapper();
+	if ( ! wrapper ) {
+		return;
+	}
+	refs.contentPushObserver = new MutationObserver( () => {
+		clearTimeout( refs.contentPushTimer );
+		refs.contentPushTimer = setTimeout( pushContentToFrames, 300 );
+
+		clearTimeout( refs.autosaveTimer );
+		refs.autosaveTimer = setTimeout( triggerAutosave, 3000 );
+	} );
+	refs.contentPushObserver.observe( wrapper, {
+		childList: true,
+		subtree: true,
+		characterData: true,
+		attributes: true,
+	} );
+}
+
+function stopContentPush() {
+	if ( refs.contentPushObserver ) {
+		refs.contentPushObserver.disconnect();
+		refs.contentPushObserver = null;
+	}
+	clearTimeout( refs.contentPushTimer );
+	refs.contentPushTimer = null;
+	clearTimeout( refs.autosaveTimer );
+	refs.autosaveTimer = null;
+}
+
+function triggerAutosave() {
+	if ( ! state.active ) {
+		return;
+	}
+	try {
+		const select = window.wp?.data?.select?.( 'core/editor' );
+		if ( ! select ) {
+			return;
+		}
+		const dirty = select.isEditedPostDirty?.() ?? false;
+		const saving = select.isSavingPost?.() ?? false;
+		if ( dirty && ! saving ) {
+			window.wp.data.dispatch( 'core/editor' ).autosave();
+		}
+	} catch ( e ) {} // eslint-disable-line no-empty
 }
 
 function togglePlay() {
@@ -108,10 +180,12 @@ function activate() {
 			showToolbar();
 			hideLoadingOverlay();
 			startSaveWatcher();
+			startContentPush();
 
 			setTimeout( () => {
 				freezeEditorAnimations();
 				expandEditorIframe();
+				syncBackdropContentHeight();
 			}, 400 );
 		} );
 	};
@@ -128,6 +202,7 @@ function deactivate() {
 	restoreEditorIframe();
 	stopMirrorObserver();
 	stopSaveWatcher();
+	stopContentPush();
 	clearInterval( refs.editorReadyTimer );
 	refs.editorReadyTimer = null;
 	clearTimeout( refs.rebuildTimer );

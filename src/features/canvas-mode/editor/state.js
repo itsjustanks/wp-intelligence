@@ -55,7 +55,17 @@ export const refs = {
 	rebuildTimer: null,
 	editorReadyTimer: null,
 	panzoomInstance: null,
+	backdropEl: null,
+	topSpacerEl: null,
+	bottomSpacerEl: null,
+	contentPushObserver: null,
+	contentPushTimer: null,
+	autosaveTimer: null,
 };
+
+export function getContentSelector() {
+	return window.wpiCanvasModeConfig?.contentSelector || '.entry-content';
+}
 
 export function viewportByKey( key ) {
 	for ( let i = 0; i < VIEWPORTS.length; i++ ) {
