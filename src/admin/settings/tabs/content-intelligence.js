@@ -12,6 +12,8 @@ import {
 import { __ } from '@wordpress/i18n';
 import { STORE_NAME } from '../store';
 import Card from '../components/card';
+import PostSelector from '../components/post-selector';
+import LinkSearch from '../components/link-search';
 
 export default function ContentIntelligenceTab() {
 	const config = window.wpiSettingsConfig || {};
@@ -36,7 +38,7 @@ export default function ContentIntelligenceTab() {
 	const firecrawlKey = syn.firecrawl_api_key || '';
 	const brandContext = syn.brand_context || '';
 	const trainingUrls = syn.training_urls || '';
-	const examplePostIds = ( syn.example_post_ids || [] ).join( ', ' );
+	const examplePostIds = ( syn.example_post_ids || [] ).map( Number ).filter( Boolean );
 	const outputFormatDefaults = syn.output_format_defaults || {};
 	const contentStyles = syn.content_styles || config.defaultContentStyles || [];
 
@@ -188,23 +190,21 @@ export default function ContentIntelligenceTab() {
 						__nextHasNoMarginBottom
 					/>
 
-					<TextareaControl
+					<LinkSearch
 						label={ __( 'Style reference URLs', 'wp-intelligence' ) }
 						value={ trainingUrls }
 						onChange={ ( v ) => updateSyn( 'training_urls', v ) }
 						rows={ 3 }
 						placeholder={ __( 'https://example.com/article-with-good-style', 'wp-intelligence' ) }
-						help={ __( 'URLs whose tone the AI should emulate. One per line, max 10.', 'wp-intelligence' ) }
-						__nextHasNoMarginBottom
+						help={ __( 'URLs whose tone the AI should emulate. One per line, max 10. Use "Browse site" to find your own posts.', 'wp-intelligence' ) }
 					/>
 
-					<TextControl
+					<PostSelector
 						label={ __( 'Example posts', 'wp-intelligence' ) }
 						value={ examplePostIds }
-						onChange={ ( v ) => updateSyn( 'example_post_ids', v.split( ',' ).map( ( s ) => s.trim() ).filter( Boolean ) ) }
-						placeholder={ __( 'e.g. 42, 108, 256', 'wp-intelligence' ) }
-						help={ __( 'Comma-separated IDs of published posts to use as style examples (max 5).', 'wp-intelligence' ) }
-						__nextHasNoMarginBottom
+						onChange={ ( ids ) => updateSyn( 'example_post_ids', ids ) }
+						max={ 5 }
+						help={ __( 'Published posts the AI uses as style examples (max 5).', 'wp-intelligence' ) }
 					/>
 				</div>
 			</Card>
