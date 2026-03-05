@@ -162,3 +162,68 @@
 .wpi-fia-result-actions {
   margin-top: 4px;
 }
+
+/* OG toggle spacing */
+.wpi-fia-panel .components-toggle-control {
+  margin-bottom: 12px;
+}
+
+/* ── SEO Checklist Panel ── */
+
+.wpi-seo-panel {
+  padding: 4px 0;
+}
+
+.wpi-seo-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.wpi-seo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wpi-seo-badge.wpi-seo-pass { color: #00a32a; }
+.wpi-seo-badge.wpi-seo-pass svg { fill: #00a32a; }
+.wpi-seo-badge.wpi-seo-warn { color: #dba617; }
+.wpi-seo-badge.wpi-seo-warn svg { fill: #dba617; }
+.wpi-seo-badge.wpi-seo-fail { color: #cc1818; }
+.wpi-seo-badge.wpi-seo-fail svg { fill: #cc1818; }
+
+.wpi-seo-check {
+  padding: 6px 0;
+}
+
+.wpi-seo-check + .wpi-seo-check {
+  border-top: 1px solid #f0f0f0;
+}
+
+.wpi-seo-check-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wpi-seo-check-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e1e1e;
+}
+
+.wpi-seo-check-detail {
+  margin: 2px 0 0 24px;
+  font-size: 12px;
+  color: #757575;
+  line-height: 1.4;
+}
+
+.wpi-seo-pass .wpi-seo-check-header svg { fill: #00a32a; }
+.wpi-seo-warn .wpi-seo-check-header svg { fill: #dba617; }
+.wpi-seo-fail .wpi-seo-check-header svg { fill: #cc1818; }

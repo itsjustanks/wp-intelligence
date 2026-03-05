@@ -113,7 +113,6 @@ class WPI_Image_Provider {
         ['role' => 'user',   'content' => $user],
       ],
       'temperature' => 0.7,
-      'max_tokens'  => 300,
     ];
 
     $response = wp_remote_post(self::OPENAI_CHAT_ENDPOINT, [
