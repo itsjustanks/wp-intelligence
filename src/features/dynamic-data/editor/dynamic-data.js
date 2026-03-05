@@ -241,12 +241,35 @@
           el(
             'div',
             { className: 'wpi-help-content' },
+            el('h4', null, __('Value Tags', 'wp-intelligence')),
             el('p', null, __('Type merge tags directly in any text block:', 'wp-intelligence')),
-            el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '12px' } }, '{{wp.post.title}}'),
-            el('p', null, __('Or use the toolbar button to pick from available tags.', 'wp-intelligence')),
+            el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '8px' } }, '{{wp.post.title}}'),
+            el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '8px' } }, '{{storage.user_plan}}'),
             el('p', null, __('Add a fallback with the pipe character:', 'wp-intelligence')),
             el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '12px' } }, '{{url.name|Visitor}}'),
-            el('p', null, __('Tags are resolved on the frontend. In the editor, they appear as-is.', 'wp-intelligence'))
+
+            el('h4', { style: { marginTop: '16px' } }, __('Conditionals', 'wp-intelligence')),
+            el('p', null, __('Show content based on conditions:', 'wp-intelligence')),
+            el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '8px', whiteSpace: 'pre-wrap', fontSize: '12px' } },
+              '{{#if wp.user.role == "administrator"}}\n  Admin content here\n{{#else}}\n  Regular content\n{{/if}}'
+            ),
+            el('p', null, __('Supported operators: ==, !=, >, <, contains, !contains', 'wp-intelligence')),
+            el('p', null, __('Truthy check (non-empty):', 'wp-intelligence')),
+            el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '12px', whiteSpace: 'pre-wrap', fontSize: '12px' } },
+              '{{#if storage.onboarded}}\n  Welcome back!\n{{/if}}'
+            ),
+
+            el('h4', { style: { marginTop: '16px' } }, __('Browser Storage', 'wp-intelligence')),
+            el('p', null, __('Read from localStorage/sessionStorage:', 'wp-intelligence')),
+            el('code', { style: { display: 'block', padding: '8px', background: '#f0f0f0', borderRadius: '4px', marginBottom: '8px' } }, '{{storage.preferred_lang|en}}'),
+            el('p', { style: { fontSize: '12px', color: '#757575' } },
+              __('Storage tags are resolved client-side via JavaScript.', 'wp-intelligence')
+            ),
+
+            el('h4', { style: { marginTop: '16px' } }, __('Block Visibility', 'wp-intelligence')),
+            el('p', null,
+              __('Use any data source in block visibility conditions. Select "Dynamic Data" in the visibility controls panel to show/hide blocks based on webhook responses, URL params, cookies, or browser storage.', 'wp-intelligence')
+            )
           )
         )
       )

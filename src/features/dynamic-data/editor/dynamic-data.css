@@ -175,3 +175,27 @@
   color: #757575;
   font-style: italic;
 }
+
+/* Client-side badge */
+.wpi-client-badge {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #fef3cd;
+  color: #856404;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Frontend: client-side conditionals before JS runs */
+.wpi-dd-conditional {
+  display: inline;
+}
+
+/* Frontend: resolved storage tag placeholder */
+.wpi-dd-pending {
+  display: inline;
+}

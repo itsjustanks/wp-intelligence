@@ -9,6 +9,7 @@ require_once __DIR__ . '/sources/class-wordpress-source.php';
 require_once __DIR__ . '/sources/class-url-params-source.php';
 require_once __DIR__ . '/sources/class-cookie-source.php';
 require_once __DIR__ . '/sources/class-webhook-source.php';
+require_once __DIR__ . '/sources/class-storage-source.php';
 require_once __DIR__ . '/class-rest-controller.php';
 require_once __DIR__ . '/class-visibility-integration.php';
 require_once __DIR__ . '/class-dynamic-data.php';

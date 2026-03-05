@@ -26,6 +26,10 @@ class WPI_Cookie_Source implements WPI_Data_Source_Interface {
     return 'cookie';
   }
 
+  public function is_client_side(): bool {
+    return false;
+  }
+
   public function fetch(array $context = []): array {
     $cookies = [];
     $count   = 0;

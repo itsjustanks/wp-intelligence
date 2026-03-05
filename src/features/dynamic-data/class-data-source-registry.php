@@ -38,9 +38,21 @@ interface WPI_Data_Source_Interface {
   /**
    * Source type identifier.
    *
-   * @return string One of: wordpress, url_params, cookie, webhook.
+   * @return string One of: wordpress, url_params, cookie, webhook, storage.
    */
   public function get_type(): string;
+
+  /**
+   * Whether this source requires client-side (JS) resolution.
+   *
+   * Sources like localStorage/sessionStorage cannot be read from PHP.
+   * When true, merge tags from this source are left as placeholder elements
+   * for the frontend JS to resolve, and visibility rules are deferred
+   * to client-side evaluation (similar to the DataGlue pattern).
+   *
+   * @return bool
+   */
+  public function is_client_side(): bool;
 }
 
 class WPI_Data_Source_Registry {
@@ -153,10 +165,11 @@ class WPI_Data_Source_Registry {
     $descriptions = [];
     foreach ($this->sources as $name => $source) {
       $descriptions[] = [
-        'name'  => $name,
-        'label' => $source->get_label(),
-        'type'  => $source->get_type(),
-        'tags'  => $source->get_available_tags(),
+        'name'       => $name,
+        'label'      => $source->get_label(),
+        'type'       => $source->get_type(),
+        'clientSide' => $source->is_client_side(),
+        'tags'       => $source->get_available_tags(),
       ];
     }
     return $descriptions;

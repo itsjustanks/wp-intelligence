@@ -40,6 +40,10 @@ class WPI_WordPress_Source implements WPI_Data_Source_Interface {
     return 'wordpress';
   }
 
+  public function is_client_side(): bool {
+    return false;
+  }
+
   public function fetch(array $context = []): array {
     $post_id = $context['post_id'] ?? get_the_ID();
     $post    = $post_id ? get_post($post_id) : null;

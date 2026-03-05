@@ -45,6 +45,10 @@ class WPI_Webhook_Source implements WPI_Data_Source_Interface {
     return 'webhook';
   }
 
+  public function is_client_side(): bool {
+    return false;
+  }
+
   public function fetch(array $context = []): array|\WP_Error {
     $url = $this->interpolate_url($this->config['url'] ?? '', $context);
 
@@ -320,7 +324,7 @@ class WPI_Webhook_Source implements WPI_Data_Source_Interface {
 
     foreach ($webhooks as $name => $config) {
       $name = sanitize_key($name);
-      if ($name === '' || $name === 'wp' || $name === 'url' || $name === 'cookie') {
+      if ($name === '' || in_array($name, ['wp', 'url', 'cookie', 'storage'], true)) {
         continue;
       }
       $registry->register($name, new self($name, $config));

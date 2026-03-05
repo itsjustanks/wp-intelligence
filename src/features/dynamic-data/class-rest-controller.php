@@ -111,10 +111,10 @@ class WPI_Dynamic_Data_REST_Controller {
 
   public static function handle_create_webhook(\WP_REST_Request $request): \WP_REST_Response {
     $name = sanitize_key($request->get_param('name') ?? '');
-    if ($name === '' || $name === 'wp' || $name === 'url' || $name === 'cookie') {
+    if ($name === '' || in_array($name, ['wp', 'url', 'cookie', 'storage'], true)) {
       return new \WP_REST_Response([
         'success' => false,
-        'message' => __('Invalid webhook name. Names "wp", "url", and "cookie" are reserved.', 'wp-intelligence'),
+        'message' => __('Invalid webhook name. Names "wp", "url", "cookie", and "storage" are reserved.', 'wp-intelligence'),
       ], 400);
     }
 

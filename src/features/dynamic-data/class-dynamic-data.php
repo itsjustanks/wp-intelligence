@@ -10,18 +10,28 @@ if (! defined('ABSPATH')) {
  * block visibility integration, and editor assets.
  *
  * Merge tag syntax:
- *   {{wp.post.title}}              — WordPress post title
- *   {{wp.user.display_name}}       — current user name
- *   {{wp.site.name}}               — site name
- *   {{wp.acf.field_name}}          — ACF field value
- *   {{url.param_name}}             — URL query parameter
- *   {{cookie.cookie_name}}         — cookie value
- *   {{webhook_name.field.path}}    — pre-fetched webhook data
- *   {{source.field|fallback}}      — with fallback value
+ *   {{wp.post.title}}                                    — WordPress post title
+ *   {{wp.user.display_name}}                             — current user name
+ *   {{wp.site.name}}                                     — site name
+ *   {{wp.acf.field_name}}                                — ACF field value
+ *   {{url.param_name}}                                   — URL query parameter
+ *   {{cookie.cookie_name}}                               — cookie value
+ *   {{storage.key}}                                      — localStorage / sessionStorage
+ *   {{webhook_name.field.path}}                          — pre-fetched webhook data
+ *   {{source.field|fallback}}                            — with fallback value
+ *
+ * Conditional syntax:
+ *   {{#if source.field}}...{{/if}}                       — truthy check
+ *   {{#if source.field}}...{{#else}}...{{/if}}           — if/else
+ *   {{#if source.field == "value"}}...{{/if}}            — equality
+ *   {{#if source.field != "value"}}...{{/if}}            — inequality
+ *   {{#if source.field > "42"}}...{{/if}}                — numeric comparison
+ *   {{#if source.field contains "text"}}...{{/if}}       — substring check
  */
 class WPI_Dynamic_Data {
 
   private static bool $booted = false;
+  private static bool $frontend_enqueued = false;
 
   public static function boot(): void {
     if (self::$booted) {
@@ -48,6 +58,7 @@ class WPI_Dynamic_Data {
     $registry->register('wp', new WPI_WordPress_Source());
     $registry->register('url', new WPI_URL_Params_Source());
     $registry->register('cookie', new WPI_Cookie_Source());
+    $registry->register('storage', new WPI_Storage_Source());
 
     WPI_Webhook_Source::register_all();
 
@@ -58,10 +69,8 @@ class WPI_Dynamic_Data {
    * Resolve merge tags in block content during frontend rendering.
    *
    * Hooked at priority 8 so it runs before block visibility (priority 10).
-   *
-   * @param string $block_content The block HTML.
-   * @param array  $block         The block data.
-   * @return string
+   * Server-side tags are resolved immediately. Client-side tags (storage)
+   * are wrapped in placeholder elements for frontend JS resolution.
    */
   public static function resolve_merge_tags_in_block(string $block_content, array $block): string {
     if ($block_content === '' || strpos($block_content, '{{') === false) {
@@ -78,7 +87,46 @@ class WPI_Dynamic_Data {
 
     $context = apply_filters('wpi_dynamic_data_render_context', $context, $block);
 
-    return WPI_Merge_Tag_Engine::resolve($block_content, $context, true);
+    $resolved = WPI_Merge_Tag_Engine::resolve($block_content, $context, true);
+
+    if (WPI_Merge_Tag_Engine::has_client_side_content($resolved)) {
+      self::enqueue_frontend_assets();
+    }
+
+    return $resolved;
+  }
+
+  /**
+   * Enqueue frontend JS and anti-FOUC CSS for client-side resolution.
+   *
+   * Uses a static flag to ensure assets are only enqueued once per request.
+   */
+  public static function enqueue_frontend_assets(): void {
+    if (self::$frontend_enqueued) {
+      return;
+    }
+    self::$frontend_enqueued = true;
+
+    if (! defined('WPI_URL') || ! defined('WPI_DIR')) {
+      return;
+    }
+
+    $js_path = WPI_DIR . '/src/features/dynamic-data/editor/dynamic-data-frontend.js';
+    if (file_exists($js_path)) {
+      wp_enqueue_script(
+        'wpi-dynamic-data-frontend',
+        WPI_URL . 'src/features/dynamic-data/editor/dynamic-data-frontend.js',
+        [],
+        filemtime($js_path),
+        ['strategy' => 'defer']
+      );
+    }
+
+    wp_register_style('wpi-dynamic-data-frontend', false, [], '1.0');
+    wp_enqueue_style('wpi-dynamic-data-frontend');
+    wp_add_inline_style('wpi-dynamic-data-frontend',
+      '.wpi-dd-vis-pending { display: none !important; }'
+    );
   }
 
   /**
@@ -135,9 +183,6 @@ class WPI_Dynamic_Data {
 
   /**
    * Sanitize dynamic data settings from the admin form.
-   *
-   * @param array $input Raw settings input.
-   * @return array Sanitized settings.
    */
   public static function sanitize(array $input): array {
     $clean = [];
@@ -146,7 +191,7 @@ class WPI_Dynamic_Data {
       $webhooks = [];
       foreach ($input['webhooks'] as $name => $config) {
         $name = sanitize_key($name);
-        if ($name === '' || $name === 'wp' || $name === 'url' || $name === 'cookie') {
+        if ($name === '' || in_array($name, ['wp', 'url', 'cookie', 'storage'], true)) {
           continue;
         }
         if (is_array($config)) {
@@ -319,7 +364,12 @@ class WPI_Dynamic_Data {
                     <?php foreach ($group_tags as $tag) : ?>
                       <tr>
                         <td><code>{{<?php echo esc_html($tag['tag']); ?>}}</code></td>
-                        <td><?php echo esc_html($tag['label']); ?></td>
+                        <td>
+                          <?php echo esc_html($tag['label']); ?>
+                          <?php if (! empty($tag['clientSide'])) : ?>
+                            <span class="wpi-client-badge"><?php esc_html_e('client-side', 'wp-intelligence'); ?></span>
+                          <?php endif; ?>
+                        </td>
                       </tr>
                     <?php endforeach; ?>
                   </tbody>

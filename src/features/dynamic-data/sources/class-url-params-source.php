@@ -27,6 +27,10 @@ class WPI_URL_Params_Source implements WPI_Data_Source_Interface {
     return 'url_params';
   }
 
+  public function is_client_side(): bool {
+    return false;
+  }
+
   public function fetch(array $context = []): array {
     $params = [];
     $count  = 0;
