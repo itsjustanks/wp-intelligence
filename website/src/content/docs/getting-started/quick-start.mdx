@@ -1,0 +1,60 @@
+---
+title: Quick Start
+description: Compose your first AI-generated page layout in under 2 minutes.
+---
+
+## Compose Your First Page
+
+1. Open a page or post in the **block editor**
+2. Open the **WP Intelligence** sidebar from the editor toolbar
+3. Enter a detailed prompt describing your desired page layout:
+   > "Create a landing page with a hero section, three feature columns, a testimonial carousel, and a CTA section at the bottom. Professional tone, use blue and white colors."
+4. Choose an insert mode:
+   - **Append** — adds blocks after existing content
+   - **Replace all** — replaces all content
+   - **Insert after selected** — inserts after the currently selected block
+5. Click **Compose**
+
+## How Composition Works
+
+```
+┌─────────────────┐
+│   Your Prompt    │
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  Prompt Engine   │  ← Builds system prompt from blocks,
+│  + Block Catalog │    patterns, and strategy rules
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  AI Provider     │  ← Native WP AI client or OpenAI
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  JSON Manifest   │  ← Strict schema response
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  Compiler        │  ← Validates blocks, patterns,
+│  + Validator     │    and attributes
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  Block Tree      │  ← Normalized block objects
+└────────┬────────┘
+         │
+┌────────▼────────┐
+│  Gutenberg       │  ← wp.blocks.createBlock(...)
+│  Insertion       │
+└─────────────────┘
+```
+
+The plugin uses `createBlock()` to insert real Gutenberg blocks rather than raw HTML, which avoids block validation drift.
+
+## Tips for Better Results
+
+- **Be specific** — mention section types, content goals, and tone
+- **Reference patterns** — if your theme has specific patterns, mention them
+- **Use theme strategy** — enable theme-aware prompting in Composer settings for automatic theme hints
+- **Iterate** — use append mode to build pages section by section

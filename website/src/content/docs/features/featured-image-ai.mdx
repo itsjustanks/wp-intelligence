@@ -1,0 +1,40 @@
+---
+title: Featured Image AI
+description: Automatically generate featured images using AI when publishing posts.
+---
+
+Featured Image AI generates DALL-E images when you publish a post without a featured image.
+
+## How It Works
+
+1. Click **Publish** on a post without a featured image
+2. A panel appears in the pre-publish checklist
+3. The panel detects any fallback images from SEO plugins (Yoast, RankMath)
+4. Click **Generate with AI** to create a featured image
+5. The AI analyzes your post title and content to generate a DALL-E prompt
+6. If title overlay is enabled, the post title is composited onto the image
+7. The generated image is saved to your media library
+
+## Image Generation Defaults
+
+Configure global defaults that apply to all generated images:
+
+- **Image Style** — Photo-realistic, Illustration, Flat Design, Abstract, 3D Render, Watercolor, Minimal, Cinematic, Digital Art
+- **Aspect Ratio** — Landscape (1792x1024), Portrait (1024x1792), Square (1024x1024)
+- **Brand Colors** — colors the AI should incorporate
+- **Custom Instructions** — additional generation rules
+
+Authors can override these per-post in the editor.
+
+## Title Overlay
+
+Composite the post title onto the generated image for branded social sharing:
+
+- **Position** — Bottom, Center, or Top
+- **Background color** — semi-transparent overlay band
+- **Text color** — title text color
+- **Opacity** — 0% (transparent) to 100% (opaque)
+
+## Cost
+
+Each generation uses approximately **$0.04–0.08** in OpenAI API credits.

@@ -1,0 +1,46 @@
+---
+title: AI Composer
+description: Prompt-to-page composition using your site's registered blocks and patterns.
+---
+
+The AI Composer module is the core of WP Intelligence. It provides a block editor sidebar for generating complete page layouts from natural language prompts.
+
+## How It Works
+
+1. **Sidebar** sends your prompt to `POST /wp-json/ai-composer/v1/compose`
+2. **Prompt Engine** builds a system prompt from available blocks, patterns, and strategy rules
+3. **Provider** routes to native WP AI client (if available) or OpenAI fallback
+4. **AI** returns a strict JSON manifest describing the page structure
+5. **Manifest Compiler** validates all blocks, patterns, and attributes
+6. **Block Tree** is generated and inserted via `wp.blocks.createBlock()`
+
+## Block Library
+
+The Composer uses your site's live block registry — core blocks, ACF blocks, third-party blocks. You can control which blocks are available:
+
+- **All blocks** — auto-discovers everything registered
+- **Selected blocks** — manually choose which blocks the AI can use
+
+Core composable blocks (`core/group`, `core/columns`, `core/column`) are always enabled.
+
+## Pattern Support
+
+The Composer discovers registered patterns and includes built-in section patterns with slot injection support:
+
+- Section patterns can expose an `ai-composer-slot` class for content injection
+- The compiler coalesces sibling content into section patterns when appropriate
+- Pattern content is recursively validated
+
+## Prompting Controls
+
+- **Theme-aware strategy** — automatically adds hints based on your active theme and block libraries
+- **System prompt prepend** — custom instructions inserted before the base rules
+- **System prompt append** — custom instructions appended after the base rules
+
+## Insert Modes
+
+| Mode | Behavior |
+|---|---|
+| Append | Adds generated blocks after existing content |
+| Replace All | Replaces all editor content |
+| Insert After | Inserts after the currently selected block |

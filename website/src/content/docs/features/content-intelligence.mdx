@@ -1,0 +1,50 @@
+---
+title: Content Intelligence
+description: Generate content from URLs, videos, text, and files with AI-powered rewriting.
+---
+
+Content Intelligence (internally called Syndication) lets you generate WordPress posts from external sources — URLs, videos, text input, and files.
+
+## Capabilities
+
+- **URL-based content** — fetch and rewrite articles from any public URL
+- **Video transcripts** — extract and transform video content
+- **Text/file input** — paste or upload content for rewriting
+- **Source citations** — automatic attribution and linking
+- **ACF field mapping** — map generated content to Advanced Custom Fields
+
+## Configuration
+
+### Fetch Strategy
+
+Choose how external URLs are fetched:
+
+- **Built-in** (`wp_remote_get`) — works for most sites
+- **Firecrawl API** — handles JavaScript-rendered pages, paywalls, and anti-bot protections
+
+### Post Types
+
+Enable Content Intelligence for specific post types. Each post type can default to either **Blocks** or **WYSIWYG** output format.
+
+### Content Training
+
+Persistent context that applies to every request:
+
+- **Brand context** — tone, terminology, and messaging rules
+- **Style reference URLs** — articles whose tone the AI should emulate
+- **Example posts** — published posts whose style to match
+
+### Content Styles
+
+Pre-built writing styles available in the editor:
+
+| Style | Source Type | Purpose |
+|---|---|---|
+| As Featured In | All | Frame as media coverage |
+| Original Post | All | Fresh standalone article |
+| Summary | All | Key points with bullet list |
+| Commentary | All | Report + professional analysis |
+| Video Recap | Video | Comprehensive video article |
+| Video Takeaways | Video | Scannable key points |
+
+You can edit built-in styles or create custom ones with specific prompt instructions.

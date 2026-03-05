@@ -3,4 +3,7 @@
 .vscode/
 node_modules/
 vendor/
+build/
+website/dist/
+website/.astro/
 *.log

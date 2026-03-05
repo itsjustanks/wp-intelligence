@@ -1,0 +1,47 @@
+---
+title: Block Visibility
+description: Conditional visibility controls and scheduling for all WordPress blocks.
+---
+
+Block Visibility adds conditional display rules to every block in the editor. Show or hide blocks based on user roles, date/time, screen size, location, and more.
+
+## Visibility Controls
+
+Available directly in the block editor sidebar for every block:
+
+- **Hide Block** — completely hide a block from the frontend
+- **User Role** — show/hide based on logged-in user roles
+- **Date & Time** — schedule blocks to appear/disappear at specific times
+- **Screen Size** — responsive visibility by device breakpoint
+- **Location** — show blocks on specific pages, post types, or URLs
+
+## Integrations
+
+Extended visibility rules for popular plugins:
+
+- **ACF** — show/hide based on Advanced Custom Fields values
+- **WooCommerce** — product-specific visibility rules
+- **Easy Digital Downloads** — purchase-based visibility
+- **WP Fusion** — tag-based visibility from your CRM
+
+## REST API
+
+Block Visibility provides its own REST endpoints:
+
+- `GET /wp-json/block-visibility/v1/settings` — retrieve visibility settings
+- `GET /wp-json/block-visibility/v1/variables` — retrieve visibility variables
+
+These endpoints are authenticated by default. To allow public reads:
+
+```php
+add_filter('wpi_visibility_rest_public_settings_read', '__return_true');
+add_filter('wpi_visibility_rest_public_variables_read', '__return_true');
+```
+
+## Settings
+
+The Visibility tab in WP Intelligence settings provides a React-based management interface for:
+
+- General visibility settings
+- Block manager (enable/disable visibility controls per block type)
+- Integration configuration
