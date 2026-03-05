@@ -80,6 +80,10 @@ class WPI_Featured_Image_AI {
 
     $overlay = self::get_overlay_settings();
 
+    $has_seo_plugin = defined('RANK_MATH_VERSION') || class_exists('RankMath')
+      || defined('WPSEO_VERSION') || class_exists('WPSEO_Meta')
+      || defined('AIOSEO_VERSION') || function_exists('aioseo');
+
     wp_localize_script('wpi-featured-image-ai', 'wpiFeaturedImageAIConfig', [
       'restNamespace' => self::REST_NAMESPACE,
       'nonce'         => wp_create_nonce('wp_rest'),
@@ -91,7 +95,8 @@ class WPI_Featured_Image_AI {
         'brand_colors'        => $settings['brand_colors'] ?? '',
         'custom_instructions' => $settings['custom_instructions'] ?? '',
       ],
-      'overlay' => $overlay,
+      'overlay'      => $overlay,
+      'hasSeoPlugin' => $has_seo_plugin,
     ]);
   }
 
@@ -130,12 +135,30 @@ class WPI_Featured_Image_AI {
           'sanitize_callback' => 'sanitize_textarea_field',
           'default'           => '',
         ],
+        'apply_overlay' => [
+          'type'    => 'string',
+          'default' => 'default',
+          'enum'    => ['default', 'yes', 'no'],
+        ],
       ],
     ]);
 
     register_rest_route(self::REST_NAMESPACE, '/detect-fallback-image', [
       'methods'             => 'GET',
       'callback'            => [self::class, 'handle_detect_fallback'],
+      'permission_callback' => [self::class, 'check_permission'],
+      'args'                => [
+        'post_id' => [
+          'required'          => true,
+          'type'              => 'integer',
+          'sanitize_callback' => 'absint',
+        ],
+      ],
+    ]);
+
+    register_rest_route(self::REST_NAMESPACE, '/seo-checklist', [
+      'methods'             => 'GET',
+      'callback'            => [self::class, 'handle_seo_checklist'],
       'permission_callback' => [self::class, 'check_permission'],
       'args'                => [
         'post_id' => [
@@ -188,8 +211,15 @@ class WPI_Featured_Image_AI {
       return $attachment_id;
     }
 
-    $overlay = self::get_overlay_settings();
-    if (($overlay['show_title'] ?? '0') === '1') {
+    $overlay       = self::get_overlay_settings();
+    $apply_overlay = $request->get_param('apply_overlay') ?: 'default';
+    $should_overlay = match ($apply_overlay) {
+      'yes'   => true,
+      'no'    => false,
+      default => ($overlay['show_title'] ?? '0') === '1',
+    };
+
+    if ($should_overlay) {
       $file_path = get_attached_file($attachment_id);
       if ($file_path && file_exists($file_path)) {
         self::$provider->apply_text_overlay($file_path, $title, $overlay);
@@ -199,11 +229,18 @@ class WPI_Featured_Image_AI {
 
     set_post_thumbnail($post_id, $attachment_id);
 
+    $attachment_url = wp_get_attachment_url($attachment_id);
+
+    if ($should_overlay) {
+      self::set_seo_social_image($post_id, $attachment_id, $attachment_url);
+    }
+
     return new WP_REST_Response([
-      'success'       => true,
+      'success'        => true,
       'attachment_id'  => $attachment_id,
-      'attachment_url' => wp_get_attachment_url($attachment_id),
+      'attachment_url' => $attachment_url,
       'thumbnail'      => wp_get_attachment_image_src($attachment_id, 'medium'),
+      'og_set'         => $should_overlay,
     ], 200);
   }
 
@@ -256,6 +293,267 @@ class WPI_Featured_Image_AI {
       'fallbacks'          => $fallbacks,
       'has_featured_image' => has_post_thumbnail($post_id),
     ], 200);
+  }
+
+  /**
+   * Evaluate SEO readiness for the pre-publish checklist.
+   *
+   * Detects RankMath, Yoast, or AIOSEO and checks relevant meta fields.
+   */
+  public static function handle_seo_checklist(WP_REST_Request $request): WP_REST_Response {
+    $post_id = (int) $request->get_param('post_id');
+    $post    = get_post($post_id);
+
+    if (! $post) {
+      return new WP_REST_Response(['checks' => [], 'seo_plugin' => 'none'], 200);
+    }
+
+    $seo_plugin = 'none';
+    $checks     = [];
+
+    if (defined('RANK_MATH_VERSION') || class_exists('RankMath')) {
+      $seo_plugin = 'RankMath';
+      $checks = self::rankmath_checks($post_id, $post);
+    } elseif (defined('WPSEO_VERSION') || class_exists('WPSEO_Meta')) {
+      $seo_plugin = 'Yoast SEO';
+      $checks = self::yoast_checks($post_id, $post);
+    } elseif (defined('AIOSEO_VERSION') || function_exists('aioseo')) {
+      $seo_plugin = 'All in One SEO';
+      $checks = self::aioseo_checks($post_id, $post);
+    }
+
+    $checks[] = [
+      'id'     => 'featured_image',
+      'label'  => __('Featured image', 'wp-intelligence'),
+      'status' => has_post_thumbnail($post_id) ? 'pass' : 'fail',
+      'detail' => has_post_thumbnail($post_id)
+        ? __('Featured image is set.', 'wp-intelligence')
+        : __('No featured image set. Consider generating one with AI above.', 'wp-intelligence'),
+    ];
+
+    $content = $post->post_content ?? '';
+    $img_count = substr_count($content, '<img');
+    if ($img_count > 0) {
+      $missing_alt = preg_match_all('/<img(?![^>]*\balt\s*=\s*"[^"]+")[^>]*>/i', $content);
+      $checks[] = [
+        'id'     => 'image_alt_text',
+        'label'  => __('Image alt text', 'wp-intelligence'),
+        'status' => $missing_alt > 0 ? 'warn' : 'pass',
+        'detail' => $missing_alt > 0
+          ? sprintf(__('%d image(s) missing alt text.', 'wp-intelligence'), $missing_alt)
+          : __('All images have alt text.', 'wp-intelligence'),
+      ];
+    }
+
+    $word_count = str_word_count(wp_strip_all_tags($content));
+    $checks[] = [
+      'id'     => 'content_length',
+      'label'  => __('Content length', 'wp-intelligence'),
+      'status' => $word_count >= 300 ? 'pass' : ($word_count >= 100 ? 'warn' : 'fail'),
+      'detail' => sprintf(__('%d words', 'wp-intelligence'), $word_count),
+    ];
+
+    $has_internal_link = false;
+    $site_host = wp_parse_url(home_url(), PHP_URL_HOST);
+    if (preg_match_all('/<a\s[^>]*href=["\']([^"\']+)["\']/i', $content, $link_matches)) {
+      foreach ($link_matches[1] as $href) {
+        $link_host = wp_parse_url($href, PHP_URL_HOST);
+        if ($link_host === $site_host || $link_host === null) {
+          $has_internal_link = true;
+          break;
+        }
+      }
+    }
+    $checks[] = [
+      'id'     => 'internal_links',
+      'label'  => __('Internal links', 'wp-intelligence'),
+      'status' => $has_internal_link ? 'pass' : 'warn',
+      'detail' => $has_internal_link
+        ? __('Has internal links.', 'wp-intelligence')
+        : __('Consider adding internal links to related content.', 'wp-intelligence'),
+    ];
+
+    return new WP_REST_Response([
+      'seo_plugin' => $seo_plugin,
+      'checks'     => $checks,
+    ], 200);
+  }
+
+  private static function rankmath_checks(int $post_id, WP_Post $post): array {
+    $checks = [];
+
+    $title = get_post_meta($post_id, 'rank_math_title', true);
+    $checks[] = [
+      'id'     => 'meta_title',
+      'label'  => __('SEO title', 'wp-intelligence'),
+      'status' => (! empty($title)) ? 'pass' : 'warn',
+      'detail' => ! empty($title)
+        ? __('Custom SEO title set.', 'wp-intelligence')
+        : __('Using default title. Consider setting a custom SEO title in RankMath.', 'wp-intelligence'),
+    ];
+
+    $desc = get_post_meta($post_id, 'rank_math_description', true);
+    $checks[] = [
+      'id'     => 'meta_description',
+      'label'  => __('Meta description', 'wp-intelligence'),
+      'status' => ! empty($desc) ? 'pass' : 'fail',
+      'detail' => ! empty($desc)
+        ? sprintf(__('Set (%d characters).', 'wp-intelligence'), mb_strlen($desc))
+        : __('No meta description. This is important for search results.', 'wp-intelligence'),
+    ];
+
+    $keyword = get_post_meta($post_id, 'rank_math_focus_keyword', true);
+    $checks[] = [
+      'id'     => 'focus_keyword',
+      'label'  => __('Focus keyword', 'wp-intelligence'),
+      'status' => ! empty($keyword) ? 'pass' : 'warn',
+      'detail' => ! empty($keyword)
+        ? sprintf(__('"%s"', 'wp-intelligence'), $keyword)
+        : __('No focus keyword set.', 'wp-intelligence'),
+    ];
+
+    $og_image = get_post_meta($post_id, 'rank_math_facebook_image', true);
+    $checks[] = [
+      'id'     => 'og_image',
+      'label'  => __('Social sharing image', 'wp-intelligence'),
+      'status' => ! empty($og_image) ? 'pass' : 'warn',
+      'detail' => ! empty($og_image)
+        ? __('Custom OG image set.', 'wp-intelligence')
+        : __('No custom social image. The featured image will be used.', 'wp-intelligence'),
+    ];
+
+    $score = (int) get_post_meta($post_id, 'rank_math_seo_score', true);
+    if ($score > 0) {
+      $checks[] = [
+        'id'     => 'seo_score',
+        'label'  => __('RankMath SEO score', 'wp-intelligence'),
+        'status' => $score >= 80 ? 'pass' : ($score >= 50 ? 'warn' : 'fail'),
+        'detail' => sprintf(__('%d/100', 'wp-intelligence'), $score),
+      ];
+    }
+
+    return $checks;
+  }
+
+  private static function yoast_checks(int $post_id, WP_Post $post): array {
+    $checks = [];
+
+    $title = get_post_meta($post_id, '_yoast_wpseo_title', true);
+    $checks[] = [
+      'id'     => 'meta_title',
+      'label'  => __('SEO title', 'wp-intelligence'),
+      'status' => ! empty($title) ? 'pass' : 'warn',
+      'detail' => ! empty($title)
+        ? __('Custom SEO title set.', 'wp-intelligence')
+        : __('Using default title. Consider setting a custom SEO title in Yoast.', 'wp-intelligence'),
+    ];
+
+    $desc = get_post_meta($post_id, '_yoast_wpseo_metadesc', true);
+    $checks[] = [
+      'id'     => 'meta_description',
+      'label'  => __('Meta description', 'wp-intelligence'),
+      'status' => ! empty($desc) ? 'pass' : 'fail',
+      'detail' => ! empty($desc)
+        ? sprintf(__('Set (%d characters).', 'wp-intelligence'), mb_strlen($desc))
+        : __('No meta description. This is important for search results.', 'wp-intelligence'),
+    ];
+
+    $keyword = get_post_meta($post_id, '_yoast_wpseo_focuskw', true);
+    $checks[] = [
+      'id'     => 'focus_keyword',
+      'label'  => __('Focus keyword', 'wp-intelligence'),
+      'status' => ! empty($keyword) ? 'pass' : 'warn',
+      'detail' => ! empty($keyword)
+        ? sprintf(__('"%s"', 'wp-intelligence'), $keyword)
+        : __('No focus keyword set.', 'wp-intelligence'),
+    ];
+
+    $og_image = get_post_meta($post_id, '_yoast_wpseo_opengraph-image', true);
+    $checks[] = [
+      'id'     => 'og_image',
+      'label'  => __('Social sharing image', 'wp-intelligence'),
+      'status' => ! empty($og_image) ? 'pass' : 'warn',
+      'detail' => ! empty($og_image)
+        ? __('Custom OG image set.', 'wp-intelligence')
+        : __('No custom social image. The featured image will be used.', 'wp-intelligence'),
+    ];
+
+    $score = (int) get_post_meta($post_id, '_yoast_wpseo_linkdex', true);
+    if ($score > 0) {
+      $checks[] = [
+        'id'     => 'seo_score',
+        'label'  => __('Yoast SEO score', 'wp-intelligence'),
+        'status' => $score >= 70 ? 'pass' : ($score >= 40 ? 'warn' : 'fail'),
+        'detail' => sprintf(__('%d/100', 'wp-intelligence'), $score),
+      ];
+    }
+
+    return $checks;
+  }
+
+  private static function aioseo_checks(int $post_id, WP_Post $post): array {
+    $checks = [];
+
+    $title = get_post_meta($post_id, '_aioseo_title', true);
+    $checks[] = [
+      'id'     => 'meta_title',
+      'label'  => __('SEO title', 'wp-intelligence'),
+      'status' => ! empty($title) ? 'pass' : 'warn',
+      'detail' => ! empty($title)
+        ? __('Custom SEO title set.', 'wp-intelligence')
+        : __('Using default title. Consider setting a custom SEO title.', 'wp-intelligence'),
+    ];
+
+    $desc = get_post_meta($post_id, '_aioseo_description', true);
+    $checks[] = [
+      'id'     => 'meta_description',
+      'label'  => __('Meta description', 'wp-intelligence'),
+      'status' => ! empty($desc) ? 'pass' : 'fail',
+      'detail' => ! empty($desc)
+        ? sprintf(__('Set (%d characters).', 'wp-intelligence'), mb_strlen($desc))
+        : __('No meta description.', 'wp-intelligence'),
+    ];
+
+    $og_image = get_post_meta($post_id, '_aioseo_og_image_custom_url', true);
+    $checks[] = [
+      'id'     => 'og_image',
+      'label'  => __('Social sharing image', 'wp-intelligence'),
+      'status' => ! empty($og_image) ? 'pass' : 'warn',
+      'detail' => ! empty($og_image)
+        ? __('Custom OG image set.', 'wp-intelligence')
+        : __('No custom social image.', 'wp-intelligence'),
+    ];
+
+    return $checks;
+  }
+
+  /* ──────────────────────────────────────────────
+   *  SEO social image integration
+   * ────────────────────────────────────────────── */
+
+  /**
+   * Write the generated OG image into the active SEO plugin's meta fields.
+   */
+  private static function set_seo_social_image(int $post_id, int $attachment_id, string $url): void {
+    if (defined('RANK_MATH_VERSION') || class_exists('RankMath')) {
+      update_post_meta($post_id, 'rank_math_facebook_image',    $url);
+      update_post_meta($post_id, 'rank_math_facebook_image_id', $attachment_id);
+      update_post_meta($post_id, 'rank_math_twitter_use_facebook', 'on');
+    }
+
+    if (defined('WPSEO_VERSION') || class_exists('WPSEO_Meta')) {
+      update_post_meta($post_id, '_yoast_wpseo_opengraph-image',    $url);
+      update_post_meta($post_id, '_yoast_wpseo_opengraph-image-id', $attachment_id);
+      update_post_meta($post_id, '_yoast_wpseo_twitter-image',      $url);
+      update_post_meta($post_id, '_yoast_wpseo_twitter-image-id',   $attachment_id);
+    }
+
+    if (defined('AIOSEO_VERSION') || function_exists('aioseo')) {
+      update_post_meta($post_id, '_aioseo_og_image_custom_url', $url);
+      update_post_meta($post_id, '_aioseo_og_image_type',       'custom');
+      update_post_meta($post_id, '_aioseo_twitter_image_custom_url', $url);
+      update_post_meta($post_id, '_aioseo_twitter_image_type',       'custom');
+    }
   }
 
   /* ──────────────────────────────────────────────
