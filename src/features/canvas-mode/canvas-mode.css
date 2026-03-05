@@ -1,0 +1,469 @@
+/* Canvas Mode: inline editor canvas with side-by-side viewport frames */
+
+.wpi-canvas-toggle {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #1e1e1e;
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  margin-right: 4px;
+  padding: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+  width: 32px;
+}
+
+.wpi-canvas-toggle:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.wpi-canvas-toggle.is-active {
+  background: var(--wp-admin-theme-color, #3858e9);
+  border-color: var(--wp-admin-theme-color, #3858e9);
+  color: #fff;
+}
+
+.wpi-canvas-toggle svg {
+  display: block;
+}
+
+/* Floating bottom toolbar */
+#wpi-canvas-toolbar {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgba(30, 30, 30, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  pointer-events: auto;
+  position: fixed;
+  z-index: 99999;
+}
+
+.wpi-canvas-toolbar__group {
+  align-items: center;
+  display: flex;
+  gap: 1px;
+}
+
+.wpi-canvas-toolbar__divider {
+  background: rgba(255, 255, 255, 0.1);
+  height: 16px;
+  margin: 0 4px;
+  width: 1px;
+}
+
+.wpi-canvas-toolbar__pill {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  height: 28px;
+  padding: 0 10px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.wpi-canvas-toolbar__pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.wpi-canvas-toolbar__pill.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.wpi-canvas-toolbar__btn {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.wpi-canvas-toolbar__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.wpi-canvas-toolbar__zoom-val {
+  color: rgba(255, 255, 255, 0.75);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 42px;
+  text-align: center;
+  user-select: none;
+}
+
+.wpi-canvas-toolbar__icon {
+  fill: currentColor;
+  height: 16px;
+  width: 16px;
+}
+
+.wpi-canvas-toolbar__exit {
+  color: rgba(255, 80, 80, 0.8);
+}
+
+.wpi-canvas-toolbar__exit:hover {
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff5050;
+}
+
+/* ── Tooltips ───────────────────────────────── */
+
+#wpi-canvas-toolbar [data-tooltip] {
+  position: relative;
+}
+
+#wpi-canvas-toolbar [data-tooltip]::after {
+  background: #000;
+  border-radius: 5px;
+  bottom: calc(100% + 8px);
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 11px;
+  font-weight: 500;
+  left: 50%;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  opacity: 0;
+  padding: 5px 8px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%) translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  white-space: nowrap;
+}
+
+#wpi-canvas-toolbar [data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Canvas surface */
+body.wpi-canvas-mode-active .interface-interface-skeleton__content,
+body.wpi-canvas-mode-active .edit-post-layout__content {
+  background: #101010 !important;
+  overflow: hidden !important;
+  position: relative;
+  touch-action: none;
+}
+
+body.wpi-canvas-mode-active .edit-post-layout__metaboxes {
+  display: none !important;
+}
+
+body.wpi-canvas-mode-active .interface-interface-skeleton__content.wpi-canvas-space-pan,
+body.wpi-canvas-mode-active .edit-post-layout__content.wpi-canvas-space-pan {
+  cursor: grab;
+}
+
+body.wpi-canvas-mode-active .interface-interface-skeleton__content.wpi-canvas-is-panning,
+body.wpi-canvas-mode-active .edit-post-layout__content.wpi-canvas-is-panning {
+  cursor: grabbing;
+}
+
+#wpi-canvas-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 48px;
+  left: 0;
+  padding: 48px 56px 96px;
+  position: absolute;
+  top: 0;
+  transform-origin: 0 0;
+  width: max-content;
+  will-change: transform;
+}
+
+/* Smooth programmatic zoom/pan — toggled via JS class */
+#wpi-canvas-row.wpi-canvas-animating {
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.wpi-canvas-frame {
+  border: 0;
+  flex: 0 0 auto;
+  font: inherit;
+  text-align: left;
+  width: var(--wpi-frame-width, 1024px);
+}
+
+.wpi-canvas-frame__label {
+  align-items: baseline;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.wpi-canvas-frame__name {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.wpi-canvas-frame__dims {
+  color: rgba(255, 255, 255, 0.4);
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.wpi-canvas-frame__viewport {
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.wpi-canvas-frame--live.is-active .wpi-canvas-frame__viewport {
+  border-color: var(--wp-admin-theme-color, #3858e9);
+  box-shadow:
+    0 0 0 1px var(--wp-admin-theme-color, #3858e9),
+    0 14px 46px rgba(0, 0, 0, 0.52);
+}
+
+.wpi-canvas-frame--mirror {
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.wpi-canvas-frame--mirror:hover .wpi-canvas-frame__viewport {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.wpi-canvas-frame__mirror {
+  border: 0;
+  content-visibility: visible;
+  display: block;
+  pointer-events: none;
+}
+
+/* Make the live editor behave as a framed canvas */
+.wpi-canvas-frame--live .editor-visual-editor,
+.wpi-canvas-frame--live .edit-post-visual-editor {
+  background: #fff;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
+.wpi-canvas-frame--live .editor-visual-editor .components-resizable-box__container,
+.wpi-canvas-frame--live .edit-post-visual-editor .components-resizable-box__container {
+  margin: 0 auto !important;
+  max-width: var(--wpi-frame-width, 1024px) !important;
+  width: var(--wpi-frame-width, 1024px) !important;
+}
+
+.wpi-canvas-frame--live iframe[name="editor-canvas"] {
+  border-radius: 0 !important;
+  display: block;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+.wpi-canvas-frame--live .editor-visual-editor,
+.wpi-canvas-frame--live .edit-post-visual-editor {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.wpi-canvas-frame--live .components-resizable-box__container {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+  resize: none !important;
+}
+
+.wpi-canvas-frame--live > .wpi-canvas-frame__viewport {
+  overflow: visible;
+}
+
+/* Hide duplicated Nectar toolbar when canvas mode is active */
+body.wpi-canvas-mode-active #nectar-responsive-device-toolbar {
+  display: none !important;
+}
+
+/* Sidebar remains untouched */
+body.wpi-canvas-mode-active .interface-interface-skeleton__sidebar {
+  position: relative;
+  z-index: 32;
+}
+
+@media (max-width: 1300px) {
+
+  .wpi-canvas-frame__name {
+    font-size: 12px;
+  }
+
+  #wpi-canvas-row {
+    gap: 32px;
+    padding: 40px 40px 80px;
+  }
+}
+
+/* Loading overlay */
+#wpi-canvas-loading {
+  align-items: center;
+  background: #101010;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  inset: 0;
+  justify-content: center;
+  position: fixed;
+  transition: opacity 0.3s ease;
+  z-index: 200000;
+}
+
+#wpi-canvas-loading.wpi-canvas-loading--hiding {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wpi-canvas-loading__inner {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  gap: 10px;
+}
+
+.wpi-canvas-loading__spinner {
+  animation: wpi-canvas-spin 0.8s linear infinite;
+}
+
+.wpi-canvas-loading__exit {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  padding: 6px 16px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wpi-canvas-loading__exit:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@keyframes wpi-canvas-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Play / pause toggle on frame label */
+.wpi-canvas-frame__play-btn {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+  width: 20px;
+}
+
+.wpi-canvas-frame__play-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.wpi-canvas-frame__play-btn.is-playing {
+  background: rgba(76, 175, 80, 0.18);
+  color: #66bb6a;
+}
+
+.wpi-canvas-frame__play-btn.is-playing:hover {
+  background: rgba(76, 175, 80, 0.28);
+}
+
+.wpi-canvas-frame__play-btn[data-tooltip] {
+  position: relative;
+}
+
+.wpi-canvas-frame__play-btn[data-tooltip]::after {
+  background: #000;
+  border-radius: 4px;
+  bottom: calc(100% + 6px);
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 11px;
+  font-weight: 500;
+  left: 50%;
+  line-height: 1;
+  opacity: 0;
+  padding: 4px 7px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%) translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  white-space: nowrap;
+}
+
+.wpi-canvas-frame__play-btn[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Hide post title in canvas mode (non-iframed editors) */
+body.wpi-canvas-mode-active .editor-post-title,
+body.wpi-canvas-mode-active .editor-post-title__block,
+body.wpi-canvas-mode-active .edit-post-visual-editor__post-title-wrapper {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .wpi-canvas-toggle,
+  .wpi-canvas-toolbar__pill,
+  .wpi-canvas-toolbar__btn,
+  .wpi-canvas-frame--mirror .wpi-canvas-frame__viewport {
+    transition: none !important;
+  }
+
+  #wpi-canvas-row.wpi-canvas-animating {
+    transition: none !important;
+  }
+
+  .wpi-canvas-loading__spinner {
+    animation: none;
+  }
+}

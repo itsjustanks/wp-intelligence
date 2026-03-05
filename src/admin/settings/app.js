@@ -4,7 +4,7 @@ import { Button, Spinner, SlotFillProvider, Popover } from '@wordpress/component
 import { __ } from '@wordpress/i18n';
 import { STORE_NAME } from './store';
 import Notices from './components/notices';
-import Sidebar from './components/sidebar';
+import TabBar from './components/sidebar';
 import WelcomeTab from './tabs/welcome';
 import ModulesTab from './tabs/modules';
 import AITab from './tabs/ai';
@@ -16,6 +16,7 @@ import SecurityTab from './tabs/security';
 import PerformanceTab from './tabs/performance';
 import ResourceHintsTab from './tabs/resource-hints';
 import WooCommerceTab from './tabs/woocommerce';
+import CanvasModeTab from './tabs/canvas-mode';
 import './settings.css';
 
 const TAB_COMPONENTS = {
@@ -26,6 +27,7 @@ const TAB_COMPONENTS = {
 	syndication: ContentIntelligenceTab,
 	featured_image_ai: FeaturedImageTab,
 	visibility: VisibilityTab,
+	canvas_mode: CanvasModeTab,
 	security: SecurityTab,
 	performance: PerformanceTab,
 	resource_hints: ResourceHintsTab,
@@ -108,13 +110,18 @@ export default function SettingsApp() {
 
 				<Notices />
 
-				<div className="wpi-app-layout">
-					<Sidebar
+				<div className="wpi-app-content">
+					<TabBar
 						tabs={ tabs }
 						activeTab={ activeTab }
 						onTabChange={ handleTabChange }
 					/>
-					<main className="wpi-app-main">
+					<main
+						className="wpi-app-main"
+						role="tabpanel"
+						id={ `wpi-panel-${ activeTab }` }
+						aria-labelledby={ `wpi-tab-${ activeTab }` }
+					>
 						{ TabComponent ? (
 							<TabComponent />
 						) : (
@@ -140,6 +147,7 @@ function buildTabs( modules, registry ) {
 	const conditionalTabs = [
 		{ id: 'featured_image_ai', label: __( 'Featured Image AI', 'wp-intelligence' ), icon: 'format-image' },
 		{ id: 'visibility', label: __( 'Visibility', 'wp-intelligence' ), icon: 'visibility' },
+		{ id: 'canvas_mode', label: __( 'Canvas Mode', 'wp-intelligence' ), icon: 'grid-view' },
 		{ id: 'security', label: __( 'Security', 'wp-intelligence' ), icon: 'shield' },
 		{ id: 'performance', label: __( 'Performance', 'wp-intelligence' ), icon: 'performance' },
 		{ id: 'resource_hints', label: __( 'Resource Hints', 'wp-intelligence' ), icon: 'admin-links' },

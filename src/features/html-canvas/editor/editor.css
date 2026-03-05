@@ -1,0 +1,179 @@
+/* HTML Canvas block — editor styles */
+
+.wpi-hc-block {
+  --wpi-hc-border: #ddd;
+  --wpi-hc-radius: 4px;
+  --wpi-hc-min-h: 320px;
+}
+
+.wpi-hc-editor {
+  border: 1px solid var(--wpi-hc-border);
+  border-radius: var(--wpi-hc-radius);
+  display: flex;
+  min-height: var(--wpi-hc-min-h);
+  overflow: hidden;
+}
+
+/* ── View modes ─────────────────────────────── */
+
+.wpi-hc-editor--split .wpi-hc-code,
+.wpi-hc-editor--split .wpi-hc-preview {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.wpi-hc-editor--code .wpi-hc-code {
+  flex: 1 1 100%;
+}
+.wpi-hc-editor--code .wpi-hc-preview {
+  display: none;
+}
+
+.wpi-hc-editor--preview .wpi-hc-code {
+  display: none;
+}
+.wpi-hc-editor--preview .wpi-hc-preview {
+  flex: 1 1 100%;
+}
+
+/* ── Code pane ──────────────────────────────── */
+
+.wpi-hc-code {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.wpi-hc-textarea {
+  background: #1e1e1e;
+  border: none;
+  box-sizing: border-box;
+  color: #d4d4d4;
+  flex: 1 1 auto;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  min-height: var(--wpi-hc-min-h);
+  outline: none;
+  overflow: auto;
+  padding: 16px 18px;
+  resize: none;
+  tab-size: 2;
+  white-space: pre;
+  width: 100%;
+}
+
+.wpi-hc-textarea::placeholder {
+  color: rgba(212, 212, 212, 0.35);
+}
+
+.wpi-hc-textarea:focus {
+  box-shadow: inset 0 0 0 1px rgba(56, 88, 233, 0.5);
+}
+
+/* ── Preview pane ───────────────────────────── */
+
+.wpi-hc-preview {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.wpi-hc-editor--split .wpi-hc-preview {
+  border-left: 1px solid var(--wpi-hc-border);
+}
+
+.wpi-hc-iframe {
+  border: none;
+  display: block;
+  flex: 1 1 auto;
+  min-height: var(--wpi-hc-min-h);
+  width: 100%;
+}
+
+.wpi-hc-empty {
+  align-items: center;
+  color: #949494;
+  display: flex;
+  flex: 1 1 auto;
+  font-size: 13px;
+  justify-content: center;
+  min-height: var(--wpi-hc-min-h);
+  padding: 24px;
+  text-align: center;
+}
+
+.wpi-hc-empty p {
+  margin: 0;
+}
+
+/* ── Autocomplete dropdown ─────────────────── */
+
+.wpi-hc-ac {
+  background: #252526;
+  border: 1px solid #454545;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  max-height: 220px;
+  overflow: hidden;
+  position: absolute;
+  width: 340px;
+  z-index: 100;
+}
+
+.wpi-hc-ac__list {
+  list-style: none;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.wpi-hc-ac__item {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding: 5px 10px;
+}
+
+.wpi-hc-ac__item:hover,
+.wpi-hc-ac__item--active {
+  background: #04395e;
+}
+
+.wpi-hc-ac__tag {
+  color: #9cdcfe;
+  flex: 0 0 auto;
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.wpi-hc-ac__label {
+  color: #888;
+  flex: 1 1 auto;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Full-width alignment ───────────────────── */
+
+.wpi-hc-block.alignfull,
+.wpi-hc-block.alignwide {
+  max-width: none;
+}
+
+@media (max-width: 780px) {
+  .wpi-hc-editor--split {
+    flex-direction: column;
+  }
+
+  .wpi-hc-editor--split .wpi-hc-preview {
+    border-left: none;
+    border-top: 1px solid var(--wpi-hc-border);
+  }
+}

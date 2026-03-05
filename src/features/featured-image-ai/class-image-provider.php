@@ -15,7 +15,7 @@ if (! defined('ABSPATH')) {
  */
 class WPI_Image_Provider {
 
-  private const OPENAI_CHAT_ENDPOINT   = 'https://api.openai.com/v1/chat/completions';
+  private const OPENAI_RESPONSES_ENDPOINT = 'https://api.openai.com/v1/responses';
   private const OPENAI_IMAGES_ENDPOINT = 'https://api.openai.com/v1/images/generations';
   private const DEFAULT_MODEL          = 'gpt-5.2';
   private const IMAGE_MODEL            = 'dall-e-3';
@@ -107,15 +107,14 @@ class WPI_Image_Provider {
     }
 
     $body = [
-      'model'       => $this->get_model(),
-      'messages'    => [
-        ['role' => 'system', 'content' => $system],
-        ['role' => 'user',   'content' => $user],
-      ],
-      'temperature' => 0.7,
+      'model'        => $this->get_model(),
+      'instructions' => $system,
+      'input'        => $user,
+      'temperature'  => 0.7,
+      'store'        => false,
     ];
 
-    $response = wp_remote_post(self::OPENAI_CHAT_ENDPOINT, [
+    $response = wp_remote_post(self::OPENAI_RESPONSES_ENDPOINT, [
       'headers' => [
         'Content-Type'  => 'application/json',
         'Authorization' => 'Bearer ' . $api_key,
@@ -136,7 +135,19 @@ class WPI_Image_Provider {
       return new WP_Error('wpi_prompt_api_error', $msg, ['status' => $status]);
     }
 
-    $prompt = trim($data['choices'][0]['message']['content'] ?? '');
+    $prompt = '';
+    foreach ($data['output'] ?? [] as $item) {
+      if (($item['type'] ?? '') !== 'message') {
+        continue;
+      }
+      foreach ($item['content'] ?? [] as $content) {
+        if (($content['type'] ?? '') === 'output_text' && isset($content['text'])) {
+          $prompt = trim($content['text']);
+          break 2;
+        }
+      }
+    }
+
     if ($prompt === '') {
       return new WP_Error('wpi_empty_prompt', __('AI returned an empty image prompt.', 'wp-intelligence'), ['status' => 502]);
     }

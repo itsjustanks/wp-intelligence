@@ -1,0 +1,26 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "wpi/html-canvas",
+  "version": "0.1.0",
+  "title": "HTML Canvas",
+  "category": "design",
+  "icon": "editor-code",
+  "description": "Write HTML, CSS, and JavaScript with a live sandboxed preview.",
+  "keywords": [ "html", "code", "canvas", "custom", "sandbox" ],
+  "textdomain": "wp-intelligence",
+  "attributes": {
+    "content": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "supports": {
+    "html": false,
+    "align": [ "wide", "full" ],
+    "className": true,
+    "customClassName": true
+  },
+  "editorScript": "wpi-html-canvas-editor",
+  "editorStyle": "wpi-html-canvas-editor"
+}

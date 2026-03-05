@@ -280,12 +280,33 @@ class AI_Composer_Settings {
         : [];
     }
 
-    if (! empty($input['_mcp_context_submitted'])) {
+    if (array_key_exists('canvas_mode', $input)) {
+      $clean['canvas_mode'] = is_array($input['canvas_mode'])
+        ? (class_exists('WPI_Canvas_Mode') ? WPI_Canvas_Mode::sanitize($input['canvas_mode']) : [])
+        : [];
+    }
+
+    if (! empty($input['_mcp_context_submitted']) || array_key_exists('mcp_context_enabled', $input)) {
       $clean['mcp_context_enabled'] = ! empty($input['mcp_context_enabled']) ? '1' : '0';
+    }
+    if (! empty($input['_mcp_context_submitted']) || array_key_exists('mcp_server_url', $input)) {
       $url = trim((string) ($input['mcp_server_url'] ?? ''));
       $clean['mcp_server_url'] = $url !== '' ? esc_url_raw($url) : '';
+    }
+    if (! empty($input['_mcp_context_submitted']) || array_key_exists('mcp_cache_ttl', $input)) {
       $ttl = absint($input['mcp_cache_ttl'] ?? 3600);
       $clean['mcp_cache_ttl'] = max(60, min(86400, $ttl));
+    }
+
+    if (array_key_exists('vector_store_id', $input)) {
+      $clean['vector_store_id'] = sanitize_text_field((string) $input['vector_store_id']);
+    }
+
+    if (array_key_exists('mcp_server_enabled', $input)) {
+      $clean['mcp_server_enabled'] = ! empty($input['mcp_server_enabled']) ? '1' : '0';
+    }
+    if (array_key_exists('mcp_server_token', $input)) {
+      $clean['mcp_server_token'] = sanitize_text_field((string) $input['mcp_server_token']);
     }
 
     return self::normalize_settings($clean);
@@ -364,6 +385,15 @@ class AI_Composer_Settings {
     }
     if (! isset($settings['mcp_context_enabled'])) {
       $settings['mcp_context_enabled'] = '0';
+    }
+    if (! isset($settings['vector_store_id'])) {
+      $settings['vector_store_id'] = '';
+    }
+    if (! isset($settings['mcp_server_enabled'])) {
+      $settings['mcp_server_enabled'] = '0';
+    }
+    if (! isset($settings['mcp_server_token'])) {
+      $settings['mcp_server_token'] = '';
     }
 
     return $settings;
