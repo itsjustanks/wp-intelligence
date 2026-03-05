@@ -210,14 +210,22 @@ function register_settings() {
 						),
 					),
 				),
-				'wp_fusion'          => array(
-					'type'       => 'object',
-					'properties' => array(
-						'enable' => array(
-							'type' => 'boolean',
-						),
+			'wp_fusion'          => array(
+				'type'       => 'object',
+				'properties' => array(
+					'enable' => array(
+						'type' => 'boolean',
 					),
 				),
+			),
+			'data_glue'          => array(
+				'type'       => 'object',
+				'properties' => array(
+					'enable' => array(
+						'type' => 'boolean',
+					),
+				),
+			),
 			),
 		),
 		'disabled_blocks'     => array(
@@ -349,10 +357,13 @@ function register_settings() {
 				'enable'                  => true,
 				'enable_variable_pricing' => true,
 			),
-			'wp_fusion'          => array(
-				'enable' => true,
-			),
+		'wp_fusion'          => array(
+			'enable' => true,
 		),
+		'data_glue'          => array(
+			'enable' => true,
+		),
+	),
 		'disabled_blocks'     => array(),
 		'plugin_settings'     => array(
 			'default_controls'              => array(),
