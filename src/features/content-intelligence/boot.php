@@ -3,7 +3,7 @@ if (! defined('ABSPATH')) {
   exit;
 }
 
-require_once __DIR__ . '/class-syndication.php';
+require_once __DIR__ . '/class-content-intelligence.php';
 
 WPI_Module_Manager::register('syndication', [
   'title'       => __('Content Intelligence', 'wp-intelligence'),

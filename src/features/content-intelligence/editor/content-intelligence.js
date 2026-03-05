@@ -138,7 +138,8 @@
     var _srcFName  = useState('');
     var _prompt    = useState('');
     var _wordCount = useState(600);
-    var _mode      = useState('featured_in');
+    var lockedStyle = (config.styleLocks || {})[postType] || null;
+    var _mode      = useState(lockedStyle || 'featured_in');
     var _refUrls   = useState('');
     var _loading   = useState(false);
     var _stage     = useState(0);
@@ -400,11 +401,13 @@
           ),
 
           el(SelectControl, {
-            label: __('Style', 'wp-intelligence'),
-            value: mode,
+            label: lockedStyle
+              ? __('Style', 'wp-intelligence') + ' — ' + __('locked by theme', 'wp-intelligence')
+              : __('Style', 'wp-intelligence'),
+            value: lockedStyle || mode,
             options: getModes(),
-            onChange: setMode,
-            disabled: loading,
+            onChange: lockedStyle ? function () {} : setMode,
+            disabled: loading || !!lockedStyle,
             __nextHasNoMarginBottom: true,
           }),
 

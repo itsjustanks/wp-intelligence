@@ -226,6 +226,12 @@ class AI_Composer_Settings {
         : self::sanitize_admin_experience([]);
     }
 
+    if (array_key_exists('featured_image_ai', $input)) {
+      $clean['featured_image_ai'] = is_array($input['featured_image_ai'])
+        ? (class_exists('WPI_Featured_Image_AI') ? WPI_Featured_Image_AI::sanitize($input['featured_image_ai']) : [])
+        : [];
+    }
+
     return self::normalize_settings($clean);
   }
 
@@ -481,17 +487,17 @@ class AI_Composer_Settings {
     $saved = (array) ($syn['content_styles'] ?? []);
 
     if (empty($saved)) {
-      return self::get_default_content_styles();
-    }
-
-    $saved_ids = array_column($saved, 'id');
-    foreach (self::get_default_content_styles() as $default) {
-      if (! in_array($default['id'], $saved_ids, true)) {
-        $saved[] = $default;
+      $saved = self::get_default_content_styles();
+    } else {
+      $saved_ids = array_column($saved, 'id');
+      foreach (self::get_default_content_styles() as $default) {
+        if (! in_array($default['id'], $saved_ids, true)) {
+          $saved[] = $default;
+        }
       }
     }
 
-    return $saved;
+    return apply_filters('ai_composer_content_styles', $saved);
   }
 
   public static function get_admin_experience_settings(): array {
@@ -578,6 +584,10 @@ class AI_Composer_Settings {
       'syndication' => __('Content Intelligence', 'wp-intelligence'),
     ];
 
+    if (WPI_Module_Manager::is_active('featured_image_ai') && class_exists('WPI_Featured_Image_AI')) {
+      $tabs['featured_image_ai'] = __('Featured Image AI', 'wp-intelligence');
+    }
+
     if (WPI_Module_Manager::is_active('block_visibility') && class_exists('WPI_Block_Visibility')) {
       $tabs['visibility'] = __('Visibility', 'wp-intelligence');
     }
@@ -647,6 +657,9 @@ class AI_Composer_Settings {
               break;
             case 'syndication':
               self::render_syndication_tab();
+              break;
+            case 'featured_image_ai':
+              self::render_featured_image_ai_tab();
               break;
             case 'security':
               if (class_exists('WPI_Security')) {
@@ -1214,6 +1227,191 @@ class AI_Composer_Settings {
     <p>
       <button type="button" class="button" id="wpi-add-style"><?php esc_html_e('+ Add custom style', 'wp-intelligence'); ?></button>
     </p>
+    <?php self::render_card_end(); ?>
+
+    <?php
+  }
+
+  /* ──────────────────────────────────────────────
+   *  Tab: Featured Image AI
+   * ────────────────────────────────────────────── */
+
+  private static function render_featured_image_ai_tab(): void {
+    if (! WPI_Module_Manager::is_active('featured_image_ai')) {
+      echo '<div class="notice notice-warning inline"><p>' . esc_html__('The Featured Image AI module is disabled. Enable it on the Modules tab.', 'wp-intelligence') . '</p></div>';
+      return;
+    }
+
+    $option   = esc_attr(self::OPTION_NAME);
+    $settings = class_exists('WPI_Featured_Image_AI') ? WPI_Featured_Image_AI::get_settings() : [];
+
+    $image_style         = $settings['image_style'] ?? 'photo-realistic';
+    $aspect_ratio        = $settings['aspect_ratio'] ?? 'landscape';
+    $brand_colors        = $settings['brand_colors'] ?? '';
+    $custom_instructions = $settings['custom_instructions'] ?? '';
+
+    $style_options = [
+      'photo-realistic' => __('Photo-realistic', 'wp-intelligence'),
+      'illustration'    => __('Illustration', 'wp-intelligence'),
+      'flat-design'     => __('Flat Design', 'wp-intelligence'),
+      'abstract'        => __('Abstract', 'wp-intelligence'),
+      '3d-render'       => __('3D Render', 'wp-intelligence'),
+      'watercolor'      => __('Watercolor', 'wp-intelligence'),
+      'minimal'         => __('Minimal', 'wp-intelligence'),
+      'cinematic'       => __('Cinematic', 'wp-intelligence'),
+      'digital-art'     => __('Digital Art', 'wp-intelligence'),
+    ];
+
+    $ratio_options = [
+      'landscape' => __('Landscape (1792x1024)', 'wp-intelligence'),
+      'portrait'  => __('Portrait (1024x1792)', 'wp-intelligence'),
+      'square'    => __('Square (1024x1024)', 'wp-intelligence'),
+    ];
+
+    ?>
+    <?php self::render_card_start(__('Image Generation Defaults', 'wp-intelligence'), __('These defaults apply when generating featured images. Authors can override per-post in the editor.', 'wp-intelligence'), 'format-image'); ?>
+    <table class="form-table" role="presentation"><tbody>
+      <tr>
+        <th scope="row"><label for="wpi_fia_style"><?php esc_html_e('Image Style', 'wp-intelligence'); ?></label></th>
+        <td>
+          <select id="wpi_fia_style" name="<?php echo $option; ?>[featured_image_ai][image_style]">
+            <?php foreach ($style_options as $value => $label) : ?>
+              <option value="<?php echo esc_attr($value); ?>" <?php selected($image_style, $value); ?>><?php echo esc_html($label); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <p class="description"><?php esc_html_e('The visual style for AI-generated featured images.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_ratio"><?php esc_html_e('Aspect Ratio', 'wp-intelligence'); ?></label></th>
+        <td>
+          <select id="wpi_fia_ratio" name="<?php echo $option; ?>[featured_image_ai][aspect_ratio]">
+            <?php foreach ($ratio_options as $value => $label) : ?>
+              <option value="<?php echo esc_attr($value); ?>" <?php selected($aspect_ratio, $value); ?>><?php echo esc_html($label); ?></option>
+            <?php endforeach; ?>
+          </select>
+          <p class="description"><?php esc_html_e('Default aspect ratio for generated images.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_brand"><?php esc_html_e('Brand Colors', 'wp-intelligence'); ?></label></th>
+        <td>
+          <input type="text" id="wpi_fia_brand"
+            name="<?php echo $option; ?>[featured_image_ai][brand_colors]"
+            value="<?php echo esc_attr($brand_colors); ?>"
+            class="regular-text"
+            placeholder="<?php esc_attr_e('e.g. navy blue (#1a237e), gold (#ffd700), white', 'wp-intelligence'); ?>">
+          <p class="description"><?php esc_html_e('Brand colors the AI should incorporate into generated images. Use color names or hex codes.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_instructions"><?php esc_html_e('Custom Instructions', 'wp-intelligence'); ?></label></th>
+        <td>
+          <textarea id="wpi_fia_instructions"
+            name="<?php echo $option; ?>[featured_image_ai][custom_instructions]"
+            rows="4" class="large-text"
+            placeholder="<?php esc_attr_e('e.g. Always include a subtle geometric pattern in the background. Avoid dark or moody aesthetics.', 'wp-intelligence'); ?>"
+          ><?php echo esc_textarea($custom_instructions); ?></textarea>
+          <p class="description"><?php esc_html_e('Additional instructions for the AI when generating featured images. These are included in every generation prompt.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+    </tbody></table>
+    <?php self::render_card_end(); ?>
+
+    <?php
+    $overlay = class_exists('WPI_Featured_Image_AI') ? WPI_Featured_Image_AI::get_overlay_settings() : [];
+    $overlay_show    = ($overlay['show_title'] ?? '0') === '1';
+    $overlay_pos     = $overlay['position'] ?? 'bottom';
+    $overlay_bg      = $overlay['bg_color'] ?? '#000000';
+    $overlay_text    = $overlay['text_color'] ?? '#ffffff';
+    $overlay_opacity = (int) ($overlay['opacity'] ?? 70);
+    ?>
+
+    <?php self::render_card_start(__('Title Overlay Preset', 'wp-intelligence'), __('Composite the post title onto the generated image for branded OG/social sharing images.', 'wp-intelligence'), 'admin-customizer'); ?>
+    <table class="form-table" role="presentation"><tbody>
+      <tr>
+        <th scope="row"><?php esc_html_e('Show post title', 'wp-intelligence'); ?></th>
+        <td>
+          <label>
+            <input type="checkbox" name="<?php echo $option; ?>[featured_image_ai][overlay_show_title]" value="1" <?php checked($overlay_show); ?>>
+            <?php esc_html_e('Overlay the post title on the generated image', 'wp-intelligence'); ?>
+          </label>
+          <p class="description"><?php esc_html_e('When enabled, the post title is rendered onto the image with a semi-transparent background band.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_overlay_pos"><?php esc_html_e('Title position', 'wp-intelligence'); ?></label></th>
+        <td>
+          <select id="wpi_fia_overlay_pos" name="<?php echo $option; ?>[featured_image_ai][overlay_position]">
+            <option value="bottom" <?php selected($overlay_pos, 'bottom'); ?>><?php esc_html_e('Bottom', 'wp-intelligence'); ?></option>
+            <option value="center" <?php selected($overlay_pos, 'center'); ?>><?php esc_html_e('Center', 'wp-intelligence'); ?></option>
+            <option value="top" <?php selected($overlay_pos, 'top'); ?>><?php esc_html_e('Top', 'wp-intelligence'); ?></option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_overlay_bg"><?php esc_html_e('Overlay background', 'wp-intelligence'); ?></label></th>
+        <td>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="color" id="wpi_fia_overlay_bg"
+              name="<?php echo $option; ?>[featured_image_ai][overlay_bg_color]"
+              value="<?php echo esc_attr($overlay_bg); ?>"
+              style="width:48px;height:36px;padding:2px;border:1px solid #8c8f94;border-radius:4px;cursor:pointer;">
+            <span><?php echo esc_html($overlay_bg); ?></span>
+          </div>
+          <p class="description"><?php esc_html_e('Background color for the semi-transparent overlay band behind the title.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_overlay_text"><?php esc_html_e('Text color', 'wp-intelligence'); ?></label></th>
+        <td>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="color" id="wpi_fia_overlay_text"
+              name="<?php echo $option; ?>[featured_image_ai][overlay_text_color]"
+              value="<?php echo esc_attr($overlay_text); ?>"
+              style="width:48px;height:36px;padding:2px;border:1px solid #8c8f94;border-radius:4px;cursor:pointer;">
+            <span><?php echo esc_html($overlay_text); ?></span>
+          </div>
+          <p class="description"><?php esc_html_e('Color for the post title text rendered on the overlay.', 'wp-intelligence'); ?></p>
+        </td>
+      </tr>
+      <tr>
+        <th scope="row"><label for="wpi_fia_overlay_opacity"><?php esc_html_e('Overlay opacity', 'wp-intelligence'); ?></label></th>
+        <td>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="wpi_fia_overlay_opacity"
+              name="<?php echo $option; ?>[featured_image_ai][overlay_opacity]"
+              value="<?php echo esc_attr($overlay_opacity); ?>"
+              min="0" max="100" step="5"
+              style="width:200px;">
+            <span id="wpi_fia_opacity_val"><?php echo esc_html($overlay_opacity); ?>%</span>
+          </div>
+          <p class="description"><?php esc_html_e('Opacity of the background band. 0% = fully transparent, 100% = fully opaque.', 'wp-intelligence'); ?></p>
+          <script>
+          document.getElementById('wpi_fia_overlay_opacity').addEventListener('input', function() {
+            document.getElementById('wpi_fia_opacity_val').textContent = this.value + '%';
+          });
+          </script>
+        </td>
+      </tr>
+    </tbody></table>
+    <?php self::render_card_end(); ?>
+
+    <?php self::render_card_start(__('How it Works', 'wp-intelligence'), '', 'info-outline'); ?>
+    <div style="padding: 4px 0;">
+      <ol style="margin-left: 20px;">
+        <li><?php esc_html_e('When you click "Publish" on a post without a featured image, a panel appears in the pre-publish checklist.', 'wp-intelligence'); ?></li>
+        <li><?php esc_html_e('The panel detects any fallback images from SEO plugins (Yoast, RankMath) and shows them.', 'wp-intelligence'); ?></li>
+        <li><?php esc_html_e('Click "Generate with AI" to create a featured image based on your post title and content.', 'wp-intelligence'); ?></li>
+        <li><?php esc_html_e('The AI analyzes your content and generates a DALL-E prompt using your style guidelines above.', 'wp-intelligence'); ?></li>
+        <li><?php esc_html_e('If the title overlay preset is enabled, the post title is composited onto the image with your chosen background and text colors.', 'wp-intelligence'); ?></li>
+        <li><?php esc_html_e('The generated image is saved to your media library and set as the featured image.', 'wp-intelligence'); ?></li>
+        <li><?php esc_html_e('You can regenerate if the first result doesn\'t suit, or customize the style per-post before generating.', 'wp-intelligence'); ?></li>
+      </ol>
+      <p class="description" style="margin-top: 12px;">
+        <?php esc_html_e('This feature uses the same OpenAI API key configured in the AI settings tab. Each generation costs approximately $0.04-0.08 in API credits.', 'wp-intelligence'); ?>
+      </p>
+    </div>
     <?php self::render_card_end(); ?>
 
     <?php

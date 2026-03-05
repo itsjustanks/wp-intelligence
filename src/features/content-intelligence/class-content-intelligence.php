@@ -52,26 +52,26 @@ class AI_Composer_Syndication {
       return;
     }
 
-    $js_path = __DIR__ . '/editor/syndication.js';
-    $js_url  = defined('WPI_URL') ? WPI_URL . 'src/features/content-intelligence/editor/syndication.js' : '';
+    $js_path = __DIR__ . '/editor/content-intelligence.js';
+    $js_url  = defined('WPI_URL') ? WPI_URL . 'src/features/content-intelligence/editor/content-intelligence.js' : '';
 
     if ($js_url === '' || ! file_exists($js_path)) {
       return;
     }
 
     wp_enqueue_script(
-      'wpi-syndication',
+      'wpi-content-intelligence',
       $js_url,
       ['wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-api-fetch', 'wp-i18n'],
       (string) filemtime($js_path),
       true
     );
 
-    $css_path = __DIR__ . '/editor/syndication.css';
-    $css_url  = defined('WPI_URL') ? WPI_URL . 'src/features/content-intelligence/editor/syndication.css' : '';
+    $css_path = __DIR__ . '/editor/content-intelligence.css';
+    $css_url  = defined('WPI_URL') ? WPI_URL . 'src/features/content-intelligence/editor/content-intelligence.css' : '';
     if ($css_url !== '' && file_exists($css_path)) {
       wp_enqueue_style(
-        'wpi-syndication',
+        'wpi-content-intelligence',
         $css_url,
         ['wp-components'],
         (string) filemtime($css_path)
@@ -90,13 +90,16 @@ class AI_Composer_Syndication {
       ];
     }, $styles);
 
-    wp_localize_script('wpi-syndication', 'wpiSyndicationConfig', [
+    $style_locks = apply_filters('ai_composer_post_type_style_locks', []);
+
+    wp_localize_script('wpi-content-intelligence', 'wpiSyndicationConfig', [
       'restNamespace'      => 'ai-composer/v1',
       'nonce'              => wp_create_nonce('wp_rest'),
       'enabledPostTypes'   => $this->get_enabled_post_types(),
       'hasFirecrawl'       => $this->get_firecrawl_key() !== '',
       'outputDefaults'     => $output_defaults,
       'contentStyles'      => array_values($styles_for_js),
+      'styleLocks'         => (object) $style_locks,
     ]);
   }
 
@@ -1433,6 +1436,27 @@ class AI_Composer_Syndication {
       $style_urls = array_slice(array_filter(array_map('trim', explode("\n", $training_urls_setting))), 0, 10);
       if (! empty($style_urls)) {
         $system_prompt .= "\n\nStyle references (match the tone and structure of content at these URLs):\n- " . implode("\n- ", $style_urls);
+      }
+    }
+
+    $theme_context_dir = apply_filters(
+      'ai_composer_context_directory',
+      get_stylesheet_directory() . '/content-intelligence/context'
+    );
+    if (is_dir($theme_context_dir)) {
+      $ctx_files = glob($theme_context_dir . '/*.{txt,md}', GLOB_BRACE);
+      if (is_array($ctx_files) && ! empty($ctx_files)) {
+        sort($ctx_files);
+        $ctx_chunks = [];
+        foreach (array_slice($ctx_files, 0, 10) as $ctx_file) {
+          $ctx_text = trim((string) file_get_contents($ctx_file));
+          if ($ctx_text !== '' && strlen($ctx_text) < 10000) {
+            $ctx_chunks[] = '--- ' . basename($ctx_file) . " ---\n" . $ctx_text;
+          }
+        }
+        if (! empty($ctx_chunks)) {
+          $system_prompt .= "\n\nTheme context (follow these guidelines):\n" . implode("\n\n", $ctx_chunks);
+        }
       }
     }
 

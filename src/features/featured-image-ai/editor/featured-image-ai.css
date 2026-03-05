@@ -1,0 +1,164 @@
+.wpi-fia-panel {
+  padding: 4px 0;
+}
+
+.wpi-fia-prompt-text {
+  margin: 0 0 12px;
+  color: #1e1e1e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.wpi-fia-has-image {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00a32a;
+  font-size: 13px;
+}
+
+.wpi-fia-has-image .dashicon,
+.wpi-fia-has-image svg {
+  fill: #00a32a;
+}
+
+/* Fallback images from SEO plugins */
+.wpi-fia-fallbacks {
+  margin: 0 0 16px;
+  padding: 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.wpi-fia-fallback-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #757575;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wpi-fia-fallback-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.wpi-fia-fallback-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  flex-shrink: 0;
+}
+
+.wpi-fia-fallback-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wpi-fia-fallback-source {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1e1e1e;
+}
+
+.wpi-fia-fallback-desc {
+  font-size: 12px;
+  color: #757575;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Actions */
+.wpi-fia-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wpi-fia-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wpi-fia-generate-btn svg {
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+.wpi-fia-options-toggle {
+  align-self: flex-start;
+}
+
+/* Style options panel */
+.wpi-fia-options {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f6f7f7;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wpi-fia-options .components-base-control {
+  margin-bottom: 0;
+}
+
+/* Generation in progress */
+.wpi-fia-generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.wpi-fia-generating .components-spinner {
+  margin-bottom: 12px;
+}
+
+.wpi-fia-generating p {
+  margin: 0;
+  font-size: 13px;
+  color: #1e1e1e;
+}
+
+.wpi-fia-generating-sub {
+  margin-top: 4px !important;
+  font-size: 12px !important;
+  color: #757575 !important;
+}
+
+/* Result */
+.wpi-fia-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wpi-fia-success-text {
+  margin: 0;
+  color: #00a32a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wpi-fia-preview {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.wpi-fia-result-actions {
+  margin-top: 4px;
+}
