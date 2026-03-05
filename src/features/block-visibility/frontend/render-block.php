@@ -264,6 +264,7 @@ require_once WPI_BV_DIR . '/features/control-sets.php';
 require_once WPI_BV_DIR . '/features/hide-block.php';
 require_once WPI_BV_DIR . '/features/browser-device.php';
 require_once WPI_BV_DIR . '/features/cookie.php';
+require_once WPI_BV_DIR . '/features/data-glue.php';
 require_once WPI_BV_DIR . '/features/date-time.php';
 require_once WPI_BV_DIR . '/features/location.php';
 require_once WPI_BV_DIR . '/features/metadata.php';
