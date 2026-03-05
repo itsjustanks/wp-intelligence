@@ -624,6 +624,10 @@ class AI_Composer_Settings {
       $tabs['visibility'] = __('Visibility', 'wp-intelligence');
     }
 
+    if (WPI_Module_Manager::is_active('dynamic_data') && class_exists('WPI_Dynamic_Data')) {
+      $tabs['dynamic_data'] = __('Dynamic Data', 'wp-intelligence');
+    }
+
     $module_tabs = [
       'security'       => ['class' => 'WPI_Security',       'label' => __('Security', 'wp-intelligence')],
       'performance'    => ['class' => 'WPI_Performance',     'label' => __('Performance', 'wp-intelligence')],
@@ -692,6 +696,11 @@ class AI_Composer_Settings {
               break;
             case 'featured_image_ai':
               self::render_featured_image_ai_tab();
+              break;
+            case 'dynamic_data':
+              if (class_exists('WPI_Dynamic_Data')) {
+                WPI_Dynamic_Data::render_settings_tab();
+              }
               break;
             case 'security':
               if (class_exists('WPI_Security')) {
