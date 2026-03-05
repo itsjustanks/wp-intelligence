@@ -1,0 +1,26 @@
+{
+  "name": "wp-intelligence",
+  "version": "0.2.0",
+  "private": true,
+  "description": "WP Intelligence — Modular AI and site optimization toolkit for WordPress.",
+  "scripts": {
+    "build": "wp-scripts build",
+    "start": "wp-scripts start",
+    "lint:js": "wp-scripts lint-js src/admin/",
+    "lint:css": "wp-scripts lint-style src/admin/"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^30.0.0"
+  },
+  "dependencies": {
+    "@wordpress/api-fetch": "^7.0.0",
+    "@wordpress/components": "^29.0.0",
+    "@wordpress/data": "^10.0.0",
+    "@wordpress/dom-ready": "^4.0.0",
+    "@wordpress/element": "^6.0.0",
+    "@wordpress/i18n": "^5.0.0",
+    "@wordpress/icons": "^10.0.0",
+    "@wordpress/notices": "^5.0.0",
+    "@wordpress/url": "^4.0.0"
+  }
+}
