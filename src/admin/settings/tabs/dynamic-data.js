@@ -6,9 +6,8 @@ import {
 	TextControl,
 	SelectControl,
 	Spinner,
-	__experimentalInputControl as InputControl,
 } from '@wordpress/components';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import apiFetch from '@wordpress/api-fetch';
 import { STORE_NAME } from '../store';
 import Card from '../components/card';
@@ -64,7 +63,7 @@ function WebhookManager() {
 
 	const handleDelete = useCallback(
 		( name ) => {
-			if ( ! window.confirm( __( 'Delete webhook "', 'wp-intelligence' ) + name + '"?' ) ) {
+			if ( ! window.confirm( sprintf( /* translators: %s: webhook name */ __( 'Delete webhook "%s"?', 'wp-intelligence' ), name ) ) ) {
 				return;
 			}
 			apiFetch( { path: `${ REST_NS }/webhooks/${ name }`, method: 'DELETE' } )
@@ -250,11 +249,9 @@ function AddWebhookForm( { onCreated } ) {
 		} )
 			.then( ( res ) => {
 				if ( res.success ) {
-					setStatus(
-						__( 'Success! Found ', 'wp-intelligence' ) +
-							( res.fields ? res.fields.length : 0 ) +
-							__( ' fields.', 'wp-intelligence' )
-					);
+				setStatus(
+					sprintf( /* translators: %d: number of fields */ __( 'Success! Found %d fields.', 'wp-intelligence' ), res.fields ? res.fields.length : 0 )
+				);
 				} else {
 					setStatus( res.error || __( 'Test failed.', 'wp-intelligence' ) );
 				}
@@ -351,7 +348,7 @@ function AddWebhookForm( { onCreated } ) {
 			) }
 
 			<div className="wpi-dd-form-actions">
-				<Button variant="primary" isBusy={ saving } onClick={ handleAdd }>
+				<Button variant="primary" isBusy={ saving } disabled={ saving } onClick={ handleAdd }>
 					{ __( 'Add Webhook', 'wp-intelligence' ) }
 				</Button>
 				<Button variant="secondary" onClick={ handleTest }>

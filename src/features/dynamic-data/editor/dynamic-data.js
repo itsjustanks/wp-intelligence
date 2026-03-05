@@ -34,7 +34,7 @@
     'wpi/merge-tag-completer',
     function (completers) {
       var tags = config.tags || [];
-      completers.push({
+      return [].concat(completers, [{
         name: 'wpi-merge-tags',
         triggerPrefix: '{{',
         options: tags.map(function (t) {
@@ -58,8 +58,7 @@
         getOptionCompletion: function (option) {
           return '{{' + option.tag + '}}';
         },
-      });
-      return completers;
+      }]);
     }
   );
 
