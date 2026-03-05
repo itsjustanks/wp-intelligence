@@ -42,6 +42,14 @@ function enqueue_editor_scripts() {
 		$is_full_control_mode,
 		'before'
 	);
+
+	wp_enqueue_script(
+		'block-visibility-data-glue-editor',
+		WPI_BV_URL . 'assets/data-glue-editor.js',
+		array( 'block-visibility-editor-scripts', 'wp-hooks', 'wp-element', 'wp-components', 'wp-i18n', 'wp-primitives' ),
+		BLOCK_VISIBILITY_VERSION,
+		true
+	);
 }
 add_action('enqueue_block_editor_assets', __NAMESPACE__ . '\enqueue_editor_scripts');
 
