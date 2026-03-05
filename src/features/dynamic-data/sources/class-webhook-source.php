@@ -254,8 +254,8 @@ class WPI_Webhook_Source implements WPI_Data_Source_Interface {
     if (! isset($webhooks[$name])) {
       return false;
     }
-    unset($webhooks[$name]);
     $cache_key = 'wpi_dd_' . md5($name . '|' . ($webhooks[$name]['url'] ?? ''));
+    unset($webhooks[$name]);
     delete_transient($cache_key);
     return update_option(self::OPTION_KEY, $webhooks, false);
   }

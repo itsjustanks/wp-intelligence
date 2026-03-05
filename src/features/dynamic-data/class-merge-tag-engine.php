@@ -262,7 +262,7 @@ class WPI_Merge_Tag_Engine {
       return null;
     }
 
-    $data = $source->fetch($context);
+    $data = $registry->fetch_cached($source_name, $context);
 
     if (is_wp_error($data)) {
       return null;

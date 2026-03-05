@@ -162,7 +162,7 @@
       case 'contains':
         return expected !== '' && actual.indexOf(expected) !== -1;
       case 'notContain':
-        return actual === '' || actual.indexOf(expected) === -1;
+        return expected === '' || actual.indexOf(expected) === -1;
       case 'greaterThan':
         return !isNaN(actual) && !isNaN(expected) && parseFloat(actual) > parseFloat(expected);
       case 'lessThan':
