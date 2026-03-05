@@ -21,11 +21,9 @@
 	var Path      = wp.primitives.Path;
 
 	var Button        = wp.components.Button;
-	var PanelBody     = wp.components.PanelBody;
 	var SelectControl = wp.components.SelectControl;
 	var TextControl   = wp.components.TextControl;
 	var ToggleControl = wp.components.ToggleControl;
-	var Notice        = wp.components.Notice;
 
 	var CONTROL_NAME = 'dataGlue';
 	var SETTING_SLUG = 'data_glue';
@@ -340,16 +338,6 @@
 					? __( 'Hide the block if any rule set applies.', 'wp-intelligence' )
 					: __( 'Show the block if any rule set applies.', 'wp-intelligence' )
 			),
-
-			el(Notice, {
-				status: 'warning',
-				isDismissible: false,
-				style: { margin: '8px 0' }
-			}, el('span', null,
-				__( 'Requires ', 'wp-intelligence' ),
-				el('a', { href: 'https://dataglue.io', target: '_blank', rel: 'noopener noreferrer' }, 'DataGlue'),
-				__( ' (paid). Visitor tracking must be active for rules to evaluate.', 'wp-intelligence' )
-			)),
 
 			el('div', { className: 'controls-panel-item__control-fields' },
 				el('div', { className: 'rule-sets' },

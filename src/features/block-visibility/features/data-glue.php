@@ -1,10 +1,6 @@
 <?php
 /**
- * Adds DataGlue visitor attribute visibility support.
- *
- * Requires an active DataGlue subscription (https://dataglue.io).
- * DataGlue's tracking script must be installed on the site for visitor
- * attributes to be available in browser storage.
+ * Adds DataGlue (https://dataglue.io) visitor attribute visibility support.
  *
  * DataGlue stores visitor data in browser storage (localStorage, sessionStorage,
  * cookies). Since PHP cannot read localStorage/sessionStorage, this feature:
