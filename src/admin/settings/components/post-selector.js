@@ -31,11 +31,15 @@ export default function PostSelector( { value = [], onChange, max = 5, label, he
 			return;
 		}
 
+		let cancelled = false;
 		const includeParam = ids.join( ',' );
 		apiFetch( {
 			path: `/wp/v2/search?include=${ includeParam }&per_page=${ ids.length }&type=post`,
 		} )
 			.then( ( res ) => {
+				if ( cancelled ) {
+					return;
+				}
 				const ordered = ids
 					.map( ( id ) => {
 						const match = res.find( ( r ) => r.id === id );
@@ -46,7 +50,14 @@ export default function PostSelector( { value = [], onChange, max = 5, label, he
 					.filter( Boolean );
 				setPosts( ordered );
 			} )
-			.catch( () => setPosts( [] ) );
+			.catch( () => {
+				if ( ! cancelled ) {
+					setPosts( [] );
+				}
+			} );
+		return () => {
+			cancelled = true;
+		};
 	}, [ ids.join( ',' ) ] ); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const doSearch = useCallback(
