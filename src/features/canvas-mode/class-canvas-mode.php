@@ -54,8 +54,11 @@ class WPI_Canvas_Mode {
       ? $cm['default_post_types']
       : ['page'];
 
+    $content_selector = apply_filters( 'wpi_canvas_content_selector', '.entry-content' );
+
     return [
-      'defaultPostTypes' => $post_types,
+      'defaultPostTypes'  => $post_types,
+      'contentSelector'   => $content_selector,
     ];
   }
 

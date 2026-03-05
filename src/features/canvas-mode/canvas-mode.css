@@ -306,6 +306,33 @@ body.wpi-canvas-mode-active .edit-post-layout__content.wpi-canvas-is-panning {
 
 .wpi-canvas-frame--live > .wpi-canvas-frame__viewport {
   overflow: visible;
+  position: relative;
+}
+
+/* Backdrop: frontend preview behind the editor */
+.wpi-canvas-frame__backdrop {
+  border: 0;
+  display: block;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 0;
+}
+
+/* Spacers sit in front of the backdrop, transparent so header/footer show through */
+.wpi-canvas-frame__spacer {
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* Editor visual sits between spacers at z-index 1 */
+.wpi-canvas-frame--live .editor-visual-editor,
+.wpi-canvas-frame--live .edit-post-visual-editor {
+  position: relative;
+  z-index: 1;
 }
 
 /* Hide duplicated Nectar toolbar when canvas mode is active */
