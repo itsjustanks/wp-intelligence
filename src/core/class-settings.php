@@ -94,6 +94,54 @@ class AI_Composer_Settings {
       return;
     }
 
+    $build_dir = WPI_DIR . '/build';
+    $asset_file = $build_dir . '/settings.asset.php';
+
+    if (file_exists($asset_file)) {
+      $asset = require $asset_file;
+
+      wp_enqueue_style(
+        'wpi-settings-react',
+        WPI_URL . 'build/settings.css',
+        ['wp-components'],
+        $asset['version']
+      );
+
+      wp_enqueue_script(
+        'wpi-settings-react',
+        WPI_URL . 'build/settings.js',
+        $asset['dependencies'],
+        $asset['version'],
+        true
+      );
+
+      $tab = sanitize_key($_GET['tab'] ?? 'welcome');
+
+      wp_localize_script('wpi-settings-react', 'wpiSettingsConfig', [
+        'version'              => WPI_VERSION,
+        'currentTab'           => $tab ?: 'welcome',
+        'restUrl'              => rest_url('wp-intelligence/v1/'),
+        'nonce'                => wp_create_nonce('wp_rest'),
+        'hasNativeAI'          => self::has_native_ai_client(),
+        'availableModels'      => apply_filters('ai_composer_available_models', [
+          'gpt-5.2'      => 'GPT-5.2',
+          'gpt-5.1'      => 'GPT-5.1',
+          'gpt-4.1'      => 'GPT-4.1',
+          'gpt-4.1-mini' => 'GPT-4.1 Mini',
+          'gpt-4o'       => 'GPT-4o',
+          'gpt-4o-mini'  => 'GPT-4o Mini',
+        ]),
+        'blockCatalog'         => self::build_block_catalog_for_js(),
+        'forcedBlocks'         => self::get_forced_enabled_blocks(),
+        'postTypes'            => self::get_post_types_for_js(),
+        'taxonomies'           => self::get_taxonomies_for_js(),
+        'defaultContentStyles' => self::get_default_content_styles(),
+      ]);
+
+      return;
+    }
+
+    // Fallback: legacy PHP-rendered settings assets.
     $css_path = WPI_DIR . '/src/assets/admin/settings.css';
     if (file_exists($css_path)) {
       wp_enqueue_style(
@@ -572,6 +620,17 @@ class AI_Composer_Settings {
   }
 
   public static function render_page(): void {
+    // React-rendered settings page (when build exists).
+    if (file_exists(WPI_DIR . '/build/settings.asset.php')) {
+      echo '<div class="wrap"><div id="wpi-settings-root"></div></div>';
+      return;
+    }
+
+    // Legacy PHP fallback below.
+    self::render_legacy_page();
+  }
+
+  private static function render_legacy_page(): void {
     $tab     = self::current_tab();
     $modules = WPI_Module_Manager::all();
     $flags   = WPI_Module_Manager::get_flags();
@@ -1416,6 +1475,68 @@ class AI_Composer_Settings {
 
     <?php
   }
+
+  /* ──────────────────────────────────────────────
+   *  JS config helpers (for React settings page)
+   * ────────────────────────────────────────────── */
+
+  private static function build_block_catalog_for_js(): array {
+    if (! class_exists('WP_Block_Type_Registry')) {
+      return [];
+    }
+
+    $registry   = WP_Block_Type_Registry::get_instance();
+    $all_blocks = $registry->get_all_registered();
+    ksort($all_blocks);
+
+    $excluded = class_exists('AI_Composer_Block_Catalog') ? AI_Composer_Block_Catalog::EXCLUDED_BLOCKS : [];
+
+    $grouped = [];
+    foreach ($all_blocks as $name => $block_type) {
+      if (in_array($name, $excluded, true)) {
+        continue;
+      }
+      $prefix = explode('/', $name)[0] ?? 'other';
+      $grouped[$prefix][] = [
+        'name'  => $name,
+        'title' => $block_type->title ?: $name,
+      ];
+    }
+    ksort($grouped);
+
+    return $grouped;
+  }
+
+  private static function get_post_types_for_js(): array {
+    $types = get_post_types(['public' => true], 'objects');
+    $list  = [];
+    foreach ($types as $pt) {
+      if ($pt->name === 'attachment') {
+        continue;
+      }
+      $list[] = [
+        'name'  => $pt->name,
+        'label' => $pt->label,
+      ];
+    }
+    return $list;
+  }
+
+  private static function get_taxonomies_for_js(): array {
+    $taxonomies = get_taxonomies(['public' => true], 'objects');
+    $list       = [];
+    foreach ($taxonomies as $tax) {
+      $list[] = [
+        'name'  => $tax->name,
+        'label' => $tax->labels->singular_name,
+      ];
+    }
+    return $list;
+  }
+
+  /* ──────────────────────────────────────────────
+   *  Card helpers (legacy PHP rendering)
+   * ────────────────────────────────────────────── */
 
   private static function render_card_start(string $title, string $description = '', string $icon = ''): void {
     echo '<section class="wpi-card">';
