@@ -36,6 +36,7 @@ export const refs = {
 	editorVisualEl: null,
 	widthDisplayEl: null,
 	a11yBtnEl: null,
+	inspectBtnEl: null,
 	editorReadyTimer: null,
 	_editorReadyObserver: null,
 };

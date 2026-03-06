@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version matches plugin header
+        run: |
+          PLUGIN_VERSION=$(grep -m1 "define('WPI_VERSION'" wp-intelligence.php | sed "s/.*'\([0-9.]*\)'.*/\1/")
+          if [ "$PLUGIN_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::Tag version (${{ steps.version.outputs.version }}) does not match plugin version ($PLUGIN_VERSION)"
+            exit 1
+          fi
+
+      - name: Package plugin
+        run: |
+          PLUGIN_SLUG="wp-intelligence"
+          DISTIGNORE=".distignore"
+          EXCLUDE_ARGS=""
+          while IFS= read -r line; do
+            line="${line%%#*}"
+            line="$(echo "$line" | xargs)"
+            [ -z "$line" ] && continue
+            EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=${PLUGIN_SLUG}/${line} --exclude=${PLUGIN_SLUG}/${line}/*"
+          done < "$DISTIGNORE"
+          EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=${PLUGIN_SLUG}/dist/* --exclude=${PLUGIN_SLUG}/scripts/*"
+
+          mkdir -p dist
+          cd ..
+          zip -r "${PLUGIN_SLUG}/dist/${PLUGIN_SLUG}-${{ steps.version.outputs.version }}.zip" \
+            "$PLUGIN_SLUG/" $EXCLUDE_ARGS -x "*.DS_Store"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/wp-intelligence-${{ steps.version.outputs.version }}.zip

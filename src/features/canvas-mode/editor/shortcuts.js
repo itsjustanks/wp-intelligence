@@ -1,5 +1,6 @@
 import { state, refs, isTypingTarget } from './state';
 import { fitAllFrames } from './canvas';
+import { toggleSpacing } from './spacing-overlay';
 
 export function bindShortcuts( onToggle, onDeactivate, onTogglePlay ) {
 	document.addEventListener( 'keydown', ( e ) => {
@@ -18,6 +19,14 @@ export function bindShortcuts( onToggle, onDeactivate, onTogglePlay ) {
 			! e.metaKey && ! e.ctrlKey && ! e.altKey && ! e.shiftKey ) {
 			e.preventDefault();
 			onTogglePlay?.();
+			return;
+		}
+
+		if ( e.code === 'KeyI' && ! isTypingTarget( e.target ) &&
+			! e.metaKey && ! e.ctrlKey && ! e.altKey && ! e.shiftKey ) {
+			e.preventDefault();
+			const on = toggleSpacing();
+			refs.inspectBtnEl?.classList.toggle( 'is-active', on );
 			return;
 		}
 

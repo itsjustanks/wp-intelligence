@@ -2,6 +2,7 @@ import {
 	CANVAS_PADDING,
 	state, refs,
 } from './state';
+import { syncFrameHeader } from './frame-header';
 
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 2;
@@ -27,6 +28,7 @@ function flush() {
 	}
 	refs.editorVisualEl.style.transform = 'scale(' + scale + ')';
 	syncZoomLabel();
+	syncFrameHeader( scale );
 }
 
 function render() {
@@ -220,6 +222,10 @@ export function resetCanvas() {
 		refs.editorVisualEl.style.transform = '';
 		refs.editorVisualEl.classList.remove( 'wpi-canvas-animating' );
 	}
+}
+
+export function getCanvasScale() {
+	return scale;
 }
 
 export { MIN_SCALE, MAX_SCALE };

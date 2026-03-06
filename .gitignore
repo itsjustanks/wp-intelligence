@@ -4,6 +4,7 @@
 node_modules/
 vendor/
 build/
+dist/
 website/dist/
 website/.astro/
 *.log

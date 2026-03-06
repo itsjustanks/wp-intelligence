@@ -7,7 +7,8 @@
     "build": "wp-scripts build",
     "start": "wp-scripts start",
     "lint:js": "wp-scripts lint-js src/admin/",
-    "lint:css": "wp-scripts lint-style src/admin/"
+    "lint:css": "wp-scripts lint-style src/admin/",
+    "package": "bash scripts/package.sh"
   },
   "devDependencies": {
     "@wordpress/scripts": "^30.0.0"

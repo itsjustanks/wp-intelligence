@@ -36,6 +36,9 @@ import { cleanupAccessibility, reapplyAccessibility } from './accessibility';
 import { loadTemplateChrome, cleanupTemplateChrome } from './template-chrome';
 import { injectMetaboxTab, removeMetaboxTab } from './metabox-tab';
 import { resetCanvasDeviceType } from './device-override';
+import { injectFrameHeader, removeFrameHeader } from './frame-header';
+import { initDimensions, destroyDimensions } from './dimensions';
+import { initSpacingOverlay, destroySpacingOverlay } from './spacing-overlay';
 
 let _sidebarUnsubscribe = null;
 let _lastSidebarBlockId = null;
@@ -118,10 +121,13 @@ function activate() {
 
 		initZoom();
 		initResponsive();
+		injectFrameHeader();
 		fitAllFrames( false );
 		syncZoomLabel();
 		reapplyAccessibility();
 		loadTemplateChrome();
+		initDimensions();
+		initSpacingOverlay();
 		startSidebarSync();
 		injectMetaboxTab();
 		showToolbar();
@@ -153,6 +159,9 @@ function deactivate() {
 		refs._editorReadyObserver = null;
 	}
 
+	destroyDimensions();
+	destroySpacingOverlay();
+	removeFrameHeader();
 	destroyResponsive();
 	destroyZoom();
 	removeStrip();

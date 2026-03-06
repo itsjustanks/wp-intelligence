@@ -3,6 +3,8 @@ import { zoomStep, fitAllFrames, refitCanvas, syncZoomLabel } from './canvas';
 import { PLAY_SVG, PAUSE_SVG } from './frames';
 import { applyWidthFromInput } from './responsive';
 import { A11Y_MODES, setAccessibilityMode, getAccessibilityMode } from './accessibility';
+import { toggleSpacing, isSpacingEnabled } from './spacing-overlay';
+import { syncFrameHeader } from './frame-header';
 
 let _contentResizeObserver = null;
 let _contentResizeTimer = null;
@@ -226,6 +228,20 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 	refs.playBtnEl = playBtn;
 	actions.appendChild( playBtn );
 
+	const inspectBtn = mkBtn( '', () => {
+		const on = toggleSpacing();
+		inspectBtn.classList.toggle( 'is-active', on );
+	} );
+	inspectBtn.innerHTML =
+		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
+		'<path d="M2 2h4v2H4v2H2V2zm16 0h4v4h-2V4h-2V2zM2 18h2v2h2v2H2v-4zm18 2h-2v2h4v-4h-2v2z' +
+		'M7 7h10v10H7V7zm2 2v6h6V9H9z"/></svg>';
+	inspectBtn.setAttribute( 'aria-label', 'Inspect spacing (I)' );
+	inspectBtn.setAttribute( 'data-tooltip', 'Inspect (I)' );
+	inspectBtn.classList.toggle( 'is-active', isSpacingEnabled() );
+	refs.inspectBtnEl = inspectBtn;
+	actions.appendChild( inspectBtn );
+
 	const a11yWrap = document.createElement( 'div' );
 	a11yWrap.className = 'wpi-canvas-toolbar__a11y-wrap';
 	const a11yBtn = mkBtn( '', () => {
@@ -326,6 +342,7 @@ export function removeStrip() {
 		refs.zoomLabelEl = null;
 		refs.playBtnEl = null;
 		refs.a11yBtnEl = null;
+		refs.inspectBtnEl = null;
 	}
 }
 
@@ -338,11 +355,12 @@ export function syncWidthDisplay( widthPx ) {
 	}
 	if ( widthPx !== undefined ) {
 		refs.widthDisplayEl.value = Math.round( widthPx ) + 'px';
-		return;
+	} else {
+		const vp = viewportByKey( state.viewport );
+		const w = state.customWidth || vp.previewWidth;
+		refs.widthDisplayEl.value = Math.round( w ) + 'px';
 	}
-	const vp = viewportByKey( state.viewport );
-	const w = state.customWidth || vp.previewWidth;
-	refs.widthDisplayEl.value = Math.round( w ) + 'px';
+	syncFrameHeader();
 }
 
 export function updatePills() {

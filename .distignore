@@ -1,0 +1,33 @@
+# Version control
+.git
+.github
+.gitignore
+
+# IDE / editor
+.cursor
+.idea
+.vscode
+
+# Build tooling
+node_modules
+package.json
+package-lock.json
+webpack.config.js
+
+# Documentation site
+website
+
+# Dev docs
+AGENTS.md
+BASELINE.md
+TESTING.md
+
+# Tests
+tests
+
+# Source maps
+build/*.map
+
+# OS artifacts
+.DS_Store
+Thumbs.db
