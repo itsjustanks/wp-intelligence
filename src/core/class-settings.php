@@ -136,6 +136,7 @@ class AI_Composer_Settings {
         'postTypes'            => self::get_post_types_for_js(),
         'taxonomies'           => self::get_taxonomies_for_js(),
         'defaultContentStyles' => self::get_default_content_styles(),
+        'aiContext'            => self::build_ai_context_for_js(),
       ]);
 
       return;
@@ -307,6 +308,12 @@ class AI_Composer_Settings {
     }
     if (array_key_exists('mcp_server_token', $input)) {
       $clean['mcp_server_token'] = sanitize_text_field((string) $input['mcp_server_token']);
+    }
+
+    if (array_key_exists('chat_skills', $input) && is_array($input['chat_skills'])) {
+      $clean['chat_skills'] = class_exists('WPI_Chat_Skills')
+        ? WPI_Chat_Skills::sanitize($input['chat_skills'])
+        : [];
     }
 
     return self::normalize_settings($clean);
@@ -1653,6 +1660,96 @@ class AI_Composer_Settings {
       ];
     }
     return $list;
+  }
+
+  private static function build_ai_context_for_js(): array {
+    $data = [
+      'themeContextFiles' => [],
+      'contextDirectory'  => '',
+      'chatSkillDefaults' => [],
+      'chatTools'         => [],
+      'themeStrategy'     => [
+        'enabled'   => false,
+        'theme'     => get_stylesheet(),
+        'detected'  => '',
+      ],
+      'brandVoiceSource'  => 'none',
+    ];
+
+    $dir = apply_filters(
+      'ai_composer_context_directory',
+      get_stylesheet_directory() . '/content-intelligence/context'
+    );
+    $data['contextDirectory'] = is_string($dir) ? $dir : '';
+
+    if (is_string($dir) && is_dir($dir)) {
+      $files = glob($dir . '/*.{txt,md}', GLOB_BRACE);
+      if (is_array($files)) {
+        sort($files);
+        foreach (array_slice($files, 0, 20) as $file) {
+          $content = trim((string) file_get_contents($file));
+          $data['themeContextFiles'][] = [
+            'name'    => basename($file),
+            'size'    => filesize($file),
+            'preview' => mb_substr($content, 0, 300),
+          ];
+        }
+      }
+    }
+
+    if (class_exists('WPI_Chat_Skills')) {
+      $data['chatSkillDefaults'] = WPI_Chat_Skills::get_defaults();
+
+      $all_skills   = WPI_Chat_Skills::get_skills();
+      $saved        = self::get_settings()['chat_skills'] ?? null;
+      $defaults     = WPI_Chat_Skills::get_defaults();
+      $default_ids  = array_column($defaults, 'id');
+      $saved_ids    = is_array($saved) ? array_column($saved, 'id') : [];
+
+      foreach ($all_skills as &$skill) {
+        $id = $skill['id'] ?? '';
+        if (is_array($saved) && in_array($id, $saved_ids, true)) {
+          $skill['source'] = 'saved';
+        } elseif (in_array($id, $default_ids, true)) {
+          $skill['source'] = 'default';
+        } else {
+          $skill['source'] = 'theme';
+        }
+      }
+      unset($skill);
+      $data['chatSkillsResolved'] = $all_skills;
+    }
+
+    $chat_tools = apply_filters('ai_composer_chat_tools', []);
+    if (is_array($chat_tools)) {
+      foreach ($chat_tools as $tool) {
+        $data['chatTools'][] = [
+          'name'        => $tool['name'] ?? '',
+          'description' => $tool['description'] ?? '',
+          'type'        => $tool['type'] ?? 'function',
+        ];
+      }
+    }
+
+    if (class_exists('AI_Composer_Context_Provider')) {
+      $data['brandVoiceSource'] = self::is_mcp_context_enabled() ? 'mcp' : 'files';
+    }
+
+    $settings = self::get_settings();
+    if (($settings['theme_strategy_enabled'] ?? '1') === '1') {
+      $data['themeStrategy']['enabled'] = true;
+      $registry = class_exists('WP_Block_Type_Registry') ? WP_Block_Type_Registry::get_instance() : null;
+      if ($registry && ($registry->is_registered('nectar-blocks/row') || $registry->is_registered('nectar-blocks/column'))) {
+        $data['themeStrategy']['detected'] = 'nectar';
+      }
+      $template   = (string) get_template();
+      $stylesheet = (string) get_stylesheet();
+      if ($data['themeStrategy']['detected'] === '' && (str_contains($template, 'nectar') || str_contains($stylesheet, 'nectar'))) {
+        $data['themeStrategy']['detected'] = 'nectar';
+      }
+    }
+
+    return $data;
   }
 
   /* ──────────────────────────────────────────────

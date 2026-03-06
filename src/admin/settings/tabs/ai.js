@@ -9,6 +9,7 @@ import {
 	Notice,
 	Spinner,
 	DropZone,
+	Icon,
 	__experimentalNumberControl as NumberControl,
 } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
@@ -294,9 +295,11 @@ export default function AITab() {
 				</div>
 			</Card>
 
+			<AIContextCard settings={ settings } updateSetting={ updateSetting } />
+
 			{ ! config.hasNativeAI && (
-				<Card
-					title={ __( 'File Search & Context Files', 'wp-intelligence' ) }
+			<Card
+				title={ __( 'File Search & Context Files', 'wp-intelligence' ) }
 					description={ __( 'Upload documents for AI file search. Files are stored in an OpenAI vector store and available to all AI features via the Responses API.', 'wp-intelligence' ) }
 					icon="media-document"
 				>
@@ -414,6 +417,336 @@ export default function AITab() {
 				updateSetting={ updateSetting }
 			/>
 		</div>
+	);
+}
+
+const SKILL_ICONS = [
+	'edit', 'search', 'lightbulb', 'admin-tools', 'editor-paste-text',
+	'text-page', 'chart-bar', 'media-document', 'layout', 'megaphone',
+	'format-aside', 'welcome-learn-more', 'admin-customizer', 'admin-site',
+	'admin-users', 'format-chat', 'share', 'star-filled', 'tag', 'visibility',
+];
+
+function AIContextCard( { settings, updateSetting } ) {
+	const config = window.wpiSettingsConfig || {};
+	const ctx = config.aiContext || {};
+	const themeFiles = ctx.themeContextFiles || [];
+	const chatTools = ctx.chatTools || [];
+	const themeStrategy = ctx.themeStrategy || {};
+	const resolvedSkills = ctx.chatSkillsResolved || [];
+	const skillDefaults = ctx.chatSkillDefaults || [];
+	const brandVoiceSource = ctx.brandVoiceSource || 'none';
+	const contextDir = ctx.contextDirectory || '';
+
+	const skills = settings.chat_skills || null;
+	const activeSkills = skills !== null && skills !== undefined
+		? skills
+		: resolvedSkills.map( ( { source, ...rest } ) => rest );
+
+	const [ editingIdx, setEditingIdx ] = useState( null );
+	const [ editForm, setEditForm ] = useState( {} );
+	const [ expandedFile, setExpandedFile ] = useState( null );
+
+	const hasThemeContributions = themeFiles.length > 0
+		|| chatTools.length > 0
+		|| resolvedSkills.some( ( s ) => s.source === 'theme' );
+
+	const handleEditSkill = useCallback( ( idx ) => {
+		setEditingIdx( idx );
+		setEditForm( { ...activeSkills[ idx ] } );
+	}, [ activeSkills ] );
+
+	const handleSaveEdit = useCallback( () => {
+		if ( editingIdx === null ) {
+			return;
+		}
+		const updated = [ ...activeSkills ];
+		updated[ editingIdx ] = {
+			id: editForm.id || `skill-${ Date.now() }`,
+			icon: editForm.icon || 'lightbulb',
+			label: editForm.label || '',
+			prompt: editForm.prompt || '',
+		};
+		updateSetting( 'chat_skills', updated );
+		setEditingIdx( null );
+		setEditForm( {} );
+	}, [ editingIdx, editForm, activeSkills, updateSetting ] );
+
+	const handleDeleteSkill = useCallback( ( idx ) => {
+		const updated = activeSkills.filter( ( _, i ) => i !== idx );
+		updateSetting( 'chat_skills', updated );
+		if ( editingIdx === idx ) {
+			setEditingIdx( null );
+		}
+	}, [ activeSkills, editingIdx, updateSetting ] );
+
+	const handleAddSkill = useCallback( () => {
+		const updated = [
+			...activeSkills,
+			{
+				id: `custom-${ Date.now() }`,
+				icon: 'lightbulb',
+				label: '',
+				prompt: '',
+			},
+		];
+		updateSetting( 'chat_skills', updated );
+		setEditingIdx( updated.length - 1 );
+		setEditForm( updated[ updated.length - 1 ] );
+	}, [ activeSkills, updateSetting ] );
+
+	const handleResetSkills = useCallback( () => {
+		updateSetting( 'chat_skills', skillDefaults );
+		setEditingIdx( null );
+	}, [ skillDefaults, updateSetting ] );
+
+	const handleMoveSkill = useCallback( ( idx, direction ) => {
+		const newIdx = idx + direction;
+		if ( newIdx < 0 || newIdx >= activeSkills.length ) {
+			return;
+		}
+		const updated = [ ...activeSkills ];
+		[ updated[ idx ], updated[ newIdx ] ] = [ updated[ newIdx ], updated[ idx ] ];
+		updateSetting( 'chat_skills', updated );
+		if ( editingIdx === idx ) {
+			setEditingIdx( newIdx );
+		}
+	}, [ activeSkills, editingIdx, updateSetting ] );
+
+	const sourceLabel = ( source ) => {
+		if ( source === 'theme' ) {
+			return __( 'Added by theme', 'wp-intelligence' );
+		}
+		if ( source === 'saved' ) {
+			return __( 'Custom', 'wp-intelligence' );
+		}
+		return __( 'Default', 'wp-intelligence' );
+	};
+
+	return (
+		<Card
+			title={ __( 'AI Skills & Context', 'wp-intelligence' ) }
+			description={ __( 'View and manage the skills, context files, and tools available to all AI features. Themes and plugins can contribute additional items via filters.', 'wp-intelligence' ) }
+			icon="lightbulb"
+		>
+			<div className="wpi-form-fields">
+				{ /* ── Theme Context Files ── */ }
+				<div className="wpi-context-section">
+					<h4 className="wpi-context-section__title">
+						{ __( 'Context Files', 'wp-intelligence' ) }
+						{ themeFiles.length > 0 && (
+							<span className="wpi-badge">{ themeFiles.length }</span>
+						) }
+					</h4>
+					{ contextDir && (
+						<p className="description" style={ { margin: '0 0 8px', wordBreak: 'break-all' } }>
+							{ __( 'Directory:', 'wp-intelligence' ) }{ ' ' }
+							<code style={ { fontSize: '11px' } }>{ contextDir }</code>
+						</p>
+					) }
+					{ themeFiles.length === 0 ? (
+						<p className="wpi-context-empty">
+							{ __( 'No theme context files found. Themes can add .txt or .md files to their content-intelligence/context/ directory.', 'wp-intelligence' ) }
+						</p>
+					) : (
+						<ul className="wpi-context-file-list">
+							{ themeFiles.map( ( file, i ) => (
+								<li key={ file.name } className="wpi-context-file-item">
+									<button
+										type="button"
+										className="wpi-context-file-toggle"
+										onClick={ () => setExpandedFile( expandedFile === i ? null : i ) }
+									>
+										<Icon icon="media-text" size={ 16 } />
+										<span className="wpi-context-file-name">{ file.name }</span>
+										<span className="wpi-context-file-size">
+											{ file.size > 1024
+												? `${ Math.round( file.size / 1024 ) } KB`
+												: `${ file.size } B` }
+										</span>
+										<Icon icon={ expandedFile === i ? 'arrow-up-alt2' : 'arrow-down-alt2' } size={ 16 } />
+									</button>
+									{ expandedFile === i && file.preview && (
+										<pre className="wpi-context-file-preview">{ file.preview }{ file.size > 300 ? '…' : '' }</pre>
+									) }
+								</li>
+							) ) }
+						</ul>
+					) }
+				</div>
+
+				{ /* ── Chat Skills ── */ }
+				<div className="wpi-context-section">
+					<h4 className="wpi-context-section__title">
+						{ __( 'Chat Skills', 'wp-intelligence' ) }
+						<span className="wpi-badge">{ activeSkills.length }</span>
+					</h4>
+					<p className="description" style={ { margin: '0 0 12px' } }>
+						{ __( 'Quick-action presets shown to users in the AI Chat sidebar. Reorder, edit, or add custom skills.', 'wp-intelligence' ) }
+					</p>
+
+					<ul className="wpi-skills-list">
+						{ activeSkills.map( ( skill, idx ) => {
+							const resolved = resolvedSkills.find( ( s ) => s.id === skill.id );
+							const source = resolved?.source || 'saved';
+							const isEditing = editingIdx === idx;
+
+							return (
+								<li key={ skill.id || idx } className={ `wpi-skill-item${ isEditing ? ' wpi-skill-item--editing' : '' }` }>
+									{ isEditing ? (
+										<div className="wpi-skill-edit-form">
+											<div className="wpi-skill-edit-row">
+												<TextControl
+													label={ __( 'Label', 'wp-intelligence' ) }
+													value={ editForm.label || '' }
+													onChange={ ( v ) => setEditForm( { ...editForm, label: v } ) }
+													__nextHasNoMarginBottom
+												/>
+												<SelectControl
+													label={ __( 'Icon', 'wp-intelligence' ) }
+													value={ editForm.icon || 'lightbulb' }
+													options={ SKILL_ICONS.map( ( ic ) => ( { value: ic, label: ic } ) ) }
+													onChange={ ( v ) => setEditForm( { ...editForm, icon: v } ) }
+													__nextHasNoMarginBottom
+												/>
+											</div>
+											<TextareaControl
+												label={ __( 'Prompt', 'wp-intelligence' ) }
+												value={ editForm.prompt || '' }
+												onChange={ ( v ) => setEditForm( { ...editForm, prompt: v } ) }
+												rows={ 3 }
+												__nextHasNoMarginBottom
+											/>
+											<div className="wpi-skill-edit-actions">
+												<Button variant="primary" size="compact" onClick={ handleSaveEdit }>
+													{ __( 'Save', 'wp-intelligence' ) }
+												</Button>
+												<Button variant="tertiary" size="compact" onClick={ () => { setEditingIdx( null ); setEditForm( {} ); } }>
+													{ __( 'Cancel', 'wp-intelligence' ) }
+												</Button>
+											</div>
+										</div>
+									) : (
+										<div className="wpi-skill-row">
+											<div className="wpi-skill-reorder">
+												<Button
+													variant="tertiary"
+													size="small"
+													icon="arrow-up-alt2"
+													disabled={ idx === 0 }
+													onClick={ () => handleMoveSkill( idx, -1 ) }
+													label={ __( 'Move up', 'wp-intelligence' ) }
+												/>
+												<Button
+													variant="tertiary"
+													size="small"
+													icon="arrow-down-alt2"
+													disabled={ idx === activeSkills.length - 1 }
+													onClick={ () => handleMoveSkill( idx, 1 ) }
+													label={ __( 'Move down', 'wp-intelligence' ) }
+												/>
+											</div>
+											<Icon icon={ skill.icon || 'lightbulb' } size={ 20 } />
+											<div className="wpi-skill-info">
+												<strong>{ skill.label || skill.id }</strong>
+												{ source === 'theme' && (
+													<span className="wpi-skill-source wpi-skill-source--theme">
+														{ sourceLabel( source ) }
+													</span>
+												) }
+											</div>
+											<div className="wpi-skill-actions">
+												<Button
+													variant="tertiary"
+													size="compact"
+													onClick={ () => handleEditSkill( idx ) }
+												>
+													{ __( 'Edit', 'wp-intelligence' ) }
+												</Button>
+												<Button
+													variant="tertiary"
+													size="compact"
+													isDestructive
+													onClick={ () => handleDeleteSkill( idx ) }
+												>
+													{ __( 'Remove', 'wp-intelligence' ) }
+												</Button>
+											</div>
+										</div>
+									) }
+								</li>
+							);
+						} ) }
+					</ul>
+
+					<div className="wpi-skills-toolbar">
+						<Button variant="secondary" size="compact" onClick={ handleAddSkill }>
+							{ __( '+ Add Skill', 'wp-intelligence' ) }
+						</Button>
+						<Button variant="tertiary" size="compact" onClick={ handleResetSkills }>
+							{ __( 'Reset to Defaults', 'wp-intelligence' ) }
+						</Button>
+					</div>
+				</div>
+
+				{ /* ── Theme-contributed tools ── */ }
+				{ chatTools.length > 0 && (
+					<div className="wpi-context-section">
+						<h4 className="wpi-context-section__title">
+							{ __( 'Chat Tools (from theme/plugins)', 'wp-intelligence' ) }
+							<span className="wpi-badge">{ chatTools.length }</span>
+						</h4>
+						<p className="description" style={ { margin: '0 0 8px' } }>
+							{ __( 'Function-calling tools registered by the active theme or plugins. These give the AI chat additional capabilities.', 'wp-intelligence' ) }
+						</p>
+						<ul className="wpi-tools-list">
+							{ chatTools.map( ( tool ) => (
+								<li key={ tool.name } className="wpi-tool-item">
+									<code>{ tool.name }</code>
+									<span className="wpi-tool-desc">{ tool.description }</span>
+								</li>
+							) ) }
+						</ul>
+					</div>
+				) }
+
+				{ /* ── Theme Strategy ── */ }
+				<div className="wpi-context-section">
+					<h4 className="wpi-context-section__title">
+						{ __( 'Theme Detection', 'wp-intelligence' ) }
+					</h4>
+					<div className="wpi-context-meta">
+						<div className="wpi-context-meta-item">
+							<span className="wpi-context-meta-label">{ __( 'Active theme', 'wp-intelligence' ) }</span>
+							<code>{ themeStrategy.theme || '—' }</code>
+						</div>
+						<div className="wpi-context-meta-item">
+							<span className="wpi-context-meta-label">{ __( 'Theme strategy', 'wp-intelligence' ) }</span>
+							<span>{ themeStrategy.enabled
+								? ( themeStrategy.detected
+									? `${ themeStrategy.detected } detected`
+									: __( 'Enabled (no special theme detected)', 'wp-intelligence' ) )
+								: __( 'Disabled', 'wp-intelligence' ) }
+							</span>
+						</div>
+						<div className="wpi-context-meta-item">
+							<span className="wpi-context-meta-label">{ __( 'Brand voice source', 'wp-intelligence' ) }</span>
+							<span>{ brandVoiceSource === 'mcp'
+								? __( 'MCP server', 'wp-intelligence' )
+								: brandVoiceSource === 'files'
+									? __( 'Theme context files', 'wp-intelligence' )
+									: __( 'Not configured', 'wp-intelligence' ) }
+							</span>
+						</div>
+						{ hasThemeContributions && (
+							<Notice status="info" isDismissible={ false } className="wpi-theme-notice">
+								{ __( 'Your active theme is contributing AI context. Items marked "Added by theme" come from theme filters and cannot be edited here — modify them in your theme code.', 'wp-intelligence' ) }
+							</Notice>
+						) }
+					</div>
+				</div>
+			</div>
+		</Card>
 	);
 }
 

@@ -832,6 +832,278 @@
 	vertical-align: middle;
 }
 
+/* ── AI Context & Skills ──────────────── */
+
+.wpi-context-section {
+	padding: 16px 0;
+	border-top: 1px solid #f0f0f0;
+}
+
+.wpi-context-section:first-child {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.wpi-context-section__title {
+	margin: 0 0 8px;
+	font-size: 13px;
+	font-weight: 600;
+	color: #1d2327;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.wpi-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 6px;
+	font-size: 11px;
+	font-weight: 600;
+	color: #fff;
+	background: var(--wp-admin-theme-color, #3858e9);
+	border-radius: 10px;
+}
+
+.wpi-context-empty {
+	color: #757575;
+	font-size: 13px;
+	font-style: italic;
+	margin: 0;
+}
+
+.wpi-context-file-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.wpi-context-file-item {
+	border-bottom: 1px solid #f0f0f0;
+}
+
+.wpi-context-file-item:last-child {
+	border-bottom: 0;
+}
+
+.wpi-context-file-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 10px 12px;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	font-size: 13px;
+	color: #2c3338;
+	text-align: left;
+}
+
+.wpi-context-file-toggle:hover {
+	background: #f6f7f7;
+}
+
+.wpi-context-file-name {
+	flex: 1;
+	font-weight: 500;
+}
+
+.wpi-context-file-size {
+	font-size: 11px;
+	color: #757575;
+}
+
+.wpi-context-file-preview {
+	margin: 0;
+	padding: 12px 16px;
+	background: #f6f7f7;
+	border-top: 1px solid #f0f0f0;
+	font-size: 12px;
+	line-height: 1.5;
+	color: #2c3338;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+/* Skills list */
+
+.wpi-skills-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.wpi-skill-item {
+	border-bottom: 1px solid #f0f0f0;
+}
+
+.wpi-skill-item:last-child {
+	border-bottom: 0;
+}
+
+.wpi-skill-item--editing {
+	background: #f0f6fc;
+}
+
+.wpi-skill-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+}
+
+.wpi-skill-row:hover {
+	background: #f6f7f7;
+}
+
+.wpi-skill-reorder {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	flex-shrink: 0;
+}
+
+.wpi-skill-reorder .components-button {
+	min-height: 18px;
+	padding: 0;
+}
+
+.wpi-skill-reorder .components-button svg {
+	width: 16px;
+	height: 16px;
+}
+
+.wpi-skill-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.wpi-skill-info strong {
+	font-size: 13px;
+	display: block;
+}
+
+.wpi-skill-source {
+	font-size: 11px;
+	font-weight: 500;
+	margin-top: 2px;
+	display: inline-block;
+}
+
+.wpi-skill-source--theme {
+	color: #b35900;
+	background: #fff3e0;
+	border: 1px solid #f0c89a;
+	border-radius: 3px;
+	padding: 0 5px;
+}
+
+.wpi-skill-actions {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.wpi-skill-edit-form {
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.wpi-skill-edit-row {
+	display: flex;
+	gap: 12px;
+}
+
+.wpi-skill-edit-row > * {
+	flex: 1;
+}
+
+.wpi-skill-edit-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.wpi-skills-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+/* Tools list */
+
+.wpi-tools-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.wpi-tool-item {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding: 6px 0;
+	border-bottom: 1px solid #f0f0f0;
+	font-size: 13px;
+}
+
+.wpi-tool-item:last-child {
+	border-bottom: 0;
+}
+
+.wpi-tool-item code {
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.wpi-tool-desc {
+	color: #757575;
+}
+
+/* Context meta */
+
+.wpi-context-meta {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.wpi-context-meta-item {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+	font-size: 13px;
+}
+
+.wpi-context-meta-label {
+	font-weight: 500;
+	color: #1d2327;
+	min-width: 140px;
+	flex-shrink: 0;
+}
+
+.wpi-context-meta-item code {
+	font-size: 12px;
+}
+
+.wpi-theme-notice {
+	margin-top: 8px;
+}
+
 /* ── Responsive ────────────────────────── */
 
 @media (max-width: 782px) {

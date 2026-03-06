@@ -5,6 +5,7 @@ import {
 } from './state';
 import { refitCanvas, syncZoomLabel } from './canvas';
 import { syncWidthDisplay, updatePills } from './ui';
+import { setCanvasDeviceType } from './device-override';
 
 const SNAP_THRESHOLD = 16;
 const HANDLE_WIDTH = 8;
@@ -146,6 +147,7 @@ function onPointerUp( e ) {
 	);
 	if ( matchedVp ) {
 		state.viewport = matchedVp.key;
+		setCanvasDeviceType( matchedVp.key );
 		updatePills();
 	}
 
@@ -204,6 +206,7 @@ export function switchToViewport( key ) {
 
 	state.viewport = key;
 	applyWidth( vp.previewWidth );
+	setCanvasDeviceType( vp.key );
 	updatePills();
 	setTimeout( () => refitCanvas( true ), 50 );
 }

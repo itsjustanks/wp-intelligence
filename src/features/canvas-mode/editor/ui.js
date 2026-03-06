@@ -270,16 +270,21 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 		}
 	} );
 
-	const chatBtn = mkBtn( '', () => {
+	const chatBtn = document.createElement( 'button' );
+	chatBtn.className = 'wpi-canvas-toolbar__ask-ai';
+	chatBtn.setAttribute( 'type', 'button' );
+	chatBtn.setAttribute( 'aria-label', 'Ask AI' );
+	chatBtn.innerHTML =
+		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+		'<path d="M12 3v2m0 14v2m-7-9H3m18 0h-2m-1.5-6.5L16 7m-8-1.5L6.5 7m11 11L16 17M8 18.5L6.5 17"/>' +
+		'<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>' +
+		'</svg>' +
+		'<span>Ask AI</span>';
+	chatBtn.addEventListener( 'click', () => {
 		if ( typeof window.wpiAiChatToggle === 'function' ) {
 			window.wpiAiChatToggle();
 		}
 	} );
-	chatBtn.innerHTML =
-		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
-		'<path d="M4 5h16v10H8l-4 4V5zm2 2v7.17L7.17 13H18V7H6z"/></svg>';
-	chatBtn.setAttribute( 'aria-label', 'Ask AI' );
-	chatBtn.setAttribute( 'data-tooltip', 'Ask AI' );
 	actions.appendChild( chatBtn );
 
 	const exitBtn = mkBtn( '', onDeactivate );

@@ -35,6 +35,7 @@ import { initResponsive, destroyResponsive, clearCustomWidth, switchToViewport }
 import { cleanupAccessibility, reapplyAccessibility } from './accessibility';
 import { loadTemplateChrome, cleanupTemplateChrome } from './template-chrome';
 import { injectMetaboxTab, removeMetaboxTab } from './metabox-tab';
+import { resetCanvasDeviceType } from './device-override';
 
 let _sidebarUnsubscribe = null;
 let _lastSidebarBlockId = null;
@@ -134,6 +135,7 @@ function deactivate() {
 	state.playing = false;
 
 	state.viewport = 'Desktop';
+	resetCanvasDeviceType();
 
 	document.body.classList.remove( 'wpi-canvas-mode-active' );
 	hideLoadingOverlay();
