@@ -211,6 +211,33 @@ body.wpi-canvas-mode-active .edit-post-visual-editor {
   transform-origin: top center;
 }
 
+body.wpi-canvas-mode-active.wpi-canvas-device-tablet .editor-visual-editor,
+body.wpi-canvas-mode-active.wpi-canvas-device-tablet .edit-post-visual-editor,
+body.wpi-canvas-mode-active.wpi-canvas-device-mobile .editor-visual-editor,
+body.wpi-canvas-mode-active.wpi-canvas-device-mobile .edit-post-visual-editor {
+  align-items: flex-start;
+  display: flex;
+  justify-content: center;
+}
+
+body.wpi-canvas-mode-active.wpi-canvas-device-tablet .block-editor-iframe__container,
+body.wpi-canvas-mode-active.wpi-canvas-device-mobile .block-editor-iframe__container {
+  overflow: visible !important;
+}
+
+body.wpi-canvas-mode-active.wpi-canvas-device-tablet .block-editor-iframe__scale-container,
+body.wpi-canvas-mode-active.wpi-canvas-device-mobile .block-editor-iframe__scale-container {
+  margin: 0 auto !important;
+  transform: none !important;
+}
+
+body.wpi-canvas-mode-active.wpi-canvas-device-tablet .editor-resizable-editor,
+body.wpi-canvas-mode-active.wpi-canvas-device-mobile .editor-resizable-editor {
+  max-height: none !important;
+}
+
+
+
 body.wpi-canvas-mode-active .editor-visual-editor.wpi-canvas-animating,
 body.wpi-canvas-mode-active .edit-post-visual-editor.wpi-canvas-animating {
   transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);

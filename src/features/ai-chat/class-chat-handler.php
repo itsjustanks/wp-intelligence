@@ -146,9 +146,7 @@ class WPI_Chat_Handler {
         ];
       }
 
-      $body['input'] = $tool_results;
-      $body['previous_response_id'] = $data['id'] ?? null;
-      unset($body['instructions']);
+      $body['input'] = array_merge($output, $tool_results);
     }
 
     return __('I ran out of steps while working on your request. Please try a more specific question.', 'wp-intelligence');

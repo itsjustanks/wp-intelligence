@@ -34,6 +34,52 @@ let _boundIframe = null;
 let _loadHandler = null;
 let _mediaObserver = null;
 let _playInterceptor = null;
+let _heightObserver = null;
+
+function syncIframeHeight( iframe ) {
+	if ( ! iframe?.contentDocument?.documentElement ) {
+		return;
+	}
+	const doc = iframe.contentDocument;
+	const height = Math.max(
+		doc.documentElement.scrollHeight || 0,
+		doc.body?.scrollHeight || 0
+	);
+	if ( ! height ) {
+		return;
+	}
+	iframe.style.height = height + 'px';
+	const scaleContainer = iframe.closest( '.block-editor-iframe__scale-container' );
+	if ( scaleContainer ) {
+		scaleContainer.style.height = height + 'px';
+	}
+	const resizable = iframe.closest( '.editor-resizable-editor' );
+	if ( resizable ) {
+		resizable.style.height = height + 'px';
+	}
+}
+
+function startIframeHeightSync( iframe ) {
+	stopIframeHeightSync();
+	if ( ! iframe?.contentDocument?.body ) {
+		return;
+	}
+	syncIframeHeight( iframe );
+	_heightObserver = new MutationObserver( () => syncIframeHeight( iframe ) );
+	_heightObserver.observe( iframe.contentDocument.body, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		attributeFilter: [ 'style', 'class' ],
+	} );
+}
+
+function stopIframeHeightSync() {
+	if ( _heightObserver ) {
+		_heightObserver.disconnect();
+		_heightObserver = null;
+	}
+}
 
 function applyFreezeStyle( doc ) {
 	if ( ! doc?.head ) {
@@ -197,6 +243,7 @@ function bindIframeLoad( iframe ) {
 			pauseAllMedia( doc );
 			startMediaObserver( doc );
 		}
+		startIframeHeightSync( iframe );
 	};
 	iframe.addEventListener( 'load', _loadHandler );
 }
@@ -212,6 +259,7 @@ export function freezeEditorAnimations() {
 	applyFreezeStyle( doc );
 	pauseAllMedia( doc );
 	startMediaObserver( doc );
+	startIframeHeightSync( iframe );
 }
 
 export function unfreezeEditorAnimations() {
@@ -223,8 +271,21 @@ export function unfreezeEditorAnimations() {
 
 export function cleanupEditorIframe() {
 	stopMediaObserver();
+	stopIframeHeightSync();
 	if ( _boundIframe && _loadHandler ) {
 		_boundIframe.removeEventListener( 'load', _loadHandler );
+	}
+	const iframe = getEditorIframe();
+	if ( iframe ) {
+		iframe.style.height = '';
+		const scaleContainer = iframe.closest( '.block-editor-iframe__scale-container' );
+		if ( scaleContainer ) {
+			scaleContainer.style.height = '';
+		}
+		const resizable = iframe.closest( '.editor-resizable-editor' );
+		if ( resizable ) {
+			resizable.style.height = '';
+		}
 	}
 	_boundIframe = null;
 	_loadHandler = null;

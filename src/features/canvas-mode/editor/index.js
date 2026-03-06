@@ -6,6 +6,7 @@ import { subscribe } from '@wordpress/data';
 import {
 	state, refs,
 	getContentArea, getEditorVisual,
+	getEditorDeviceType, getViewportForDeviceType,
 } from './state';
 import {
 	initZoom,
@@ -42,6 +43,8 @@ import { initSpacingOverlay, destroySpacingOverlay } from './spacing-overlay';
 
 let _sidebarUnsubscribe = null;
 let _lastSidebarBlockId = null;
+let _viewportUnsubscribe = null;
+let _lastViewport = null;
 
 function startSidebarSync() {
 	stopSidebarSync();
@@ -71,6 +74,36 @@ function stopSidebarSync() {
 		_sidebarUnsubscribe = null;
 	}
 	_lastSidebarBlockId = null;
+}
+
+function startViewportSync() {
+	stopViewportSync();
+	const data = window.wp?.data;
+	if ( ! data ) {
+		return;
+	}
+	_viewportUnsubscribe = data.subscribe( () => {
+		if ( ! state.active ) {
+			return;
+		}
+		const current = getEditorDeviceType();
+		const viewport = getViewportForDeviceType( current );
+		if ( viewport.key === _lastViewport ) {
+			return;
+		}
+		_lastViewport = viewport.key;
+		state.viewport = viewport.key;
+		updatePills();
+		setTimeout( () => refitCanvas( true ), viewport.key === 'Desktop' ? 50 : 250 );
+	} );
+}
+
+function stopViewportSync() {
+	if ( _viewportUnsubscribe ) {
+		_viewportUnsubscribe();
+		_viewportUnsubscribe = null;
+	}
+	_lastViewport = null;
 }
 
 function togglePlay() {
@@ -129,6 +162,7 @@ function activate() {
 		initDimensions();
 		initSpacingOverlay();
 		startSidebarSync();
+		startViewportSync();
 		injectMetaboxTab();
 		showToolbar();
 		hideLoadingOverlay();
@@ -151,6 +185,7 @@ function deactivate() {
 	cleanupAccessibility();
 	cleanupTemplateChrome();
 	stopSidebarSync();
+	stopViewportSync();
 	removeMetaboxTab();
 	clearTimeout( refs.editorReadyTimer );
 	refs.editorReadyTimer = null;

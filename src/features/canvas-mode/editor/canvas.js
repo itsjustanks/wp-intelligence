@@ -71,6 +71,9 @@ function computeFitScale() {
 	if ( ! refs.contentEl || ! refs.editorVisualEl ) {
 		return DEFAULT_SCALE;
 	}
+	if ( state.viewport !== 'Desktop' ) {
+		return 1;
+	}
 	const availW = Math.max( 360, refs.contentEl.clientWidth );
 	const editorW = ( state.customWidth || refs.editorVisualEl.offsetWidth || 1440 ) + CANVAS_PADDING * 2;
 	const maxFit = clamp( availW / editorW, MIN_SCALE, MAX_SCALE );

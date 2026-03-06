@@ -80,8 +80,12 @@ function clearCustomWidth() {
 	}
 }
 
+function supportsManualResize() {
+	return state.viewport === 'Desktop';
+}
+
 function onPointerDown( e ) {
-	if ( ! state.active ) {
+	if ( ! state.active || ! supportsManualResize() ) {
 		return;
 	}
 	_dragging = true;
@@ -103,7 +107,7 @@ function onPointerDown( e ) {
 }
 
 function onPointerMove( e ) {
-	if ( ! _dragging ) {
+	if ( ! _dragging || ! supportsManualResize() ) {
 		return;
 	}
 
@@ -147,7 +151,6 @@ function onPointerUp( e ) {
 	);
 	if ( matchedVp ) {
 		state.viewport = matchedVp.key;
-		setCanvasDeviceType( matchedVp.key );
 		updatePills();
 	}
 
@@ -205,10 +208,14 @@ export function switchToViewport( key ) {
 	}
 
 	state.viewport = key;
-	applyWidth( vp.previewWidth );
 	setCanvasDeviceType( vp.key );
+	if ( key === 'Desktop' ) {
+		applyWidth( state.customWidth || vp.previewWidth );
+	} else {
+		clearCustomWidth();
+	}
 	updatePills();
-	setTimeout( () => refitCanvas( true ), 50 );
+	setTimeout( () => refitCanvas( true ), key === 'Desktop' ? 50 : 250 );
 }
 
 export function applyWidthFromInput( px ) {
