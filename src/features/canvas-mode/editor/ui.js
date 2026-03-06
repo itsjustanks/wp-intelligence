@@ -1,7 +1,10 @@
-import { VIEWPORTS, state, refs } from './state';
+import { VIEWPORTS, state, refs, viewportByKey } from './state';
 import { zoomStep, fitAllFrames, syncZoomLabel } from './canvas';
+import { PLAY_SVG, PAUSE_SVG } from './frames';
+import { applyWidthFromInput } from './responsive';
+import { A11Y_MODES, setAccessibilityMode, getAccessibilityMode } from './accessibility';
 
-let _toolbarResizeObserver = null;
+let _contentResizeObserver = null;
 let _overlayEl = null;
 let _onOverlayExit = null;
 
@@ -50,16 +53,6 @@ export function hideToolbar() {
 	}
 }
 
-function positionToolbar() {
-	if ( ! refs.stripEl || ! refs.contentEl ) {
-		return;
-	}
-	const rect = refs.contentEl.getBoundingClientRect();
-	const toolbarW = refs.stripEl.offsetWidth;
-	refs.stripEl.style.left = ( rect.left + rect.width / 2 - toolbarW / 2 ) + 'px';
-	refs.stripEl.style.bottom = '20px';
-}
-
 export function injectToggle( onToggle ) {
 	if ( refs.toggleBtnEl ) {
 		return;
@@ -99,7 +92,7 @@ export function updateToggle() {
 	);
 }
 
-export function injectStrip( onSwitchViewport, onDeactivate ) {
+export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 	if ( refs.stripEl ) {
 		return;
 	}
@@ -109,6 +102,53 @@ export function injectStrip( onSwitchViewport, onDeactivate ) {
 
 	refs.stripEl = document.createElement( 'div' );
 	refs.stripEl.id = 'wpi-canvas-toolbar';
+
+	refs.widthDisplayEl = document.createElement( 'input' );
+	refs.widthDisplayEl.className = 'wpi-canvas-toolbar__width';
+	refs.widthDisplayEl.type = 'text';
+	refs.widthDisplayEl.inputMode = 'numeric';
+	refs.widthDisplayEl.setAttribute( 'aria-label', 'Viewport width' );
+	refs.widthDisplayEl.setAttribute( 'data-tooltip', 'Type a width in px' );
+	refs.widthDisplayEl.value = viewportByKey( state.viewport ).previewWidth + 'px';
+	refs.widthDisplayEl.addEventListener( 'focus', () => {
+		const raw = parseInt( refs.widthDisplayEl.value, 10 );
+		if ( raw ) {
+			refs.widthDisplayEl.value = raw;
+			refs.widthDisplayEl.select();
+		}
+	} );
+	refs.widthDisplayEl.addEventListener( 'blur', () => {
+		const px = parseInt( refs.widthDisplayEl.value, 10 );
+		if ( px && px >= 280 ) {
+			const applied = applyWidthFromInput( px );
+			refs.widthDisplayEl.value = applied + 'px';
+		} else {
+			syncWidthDisplay();
+		}
+	} );
+	refs.widthDisplayEl.addEventListener( 'keydown', ( e ) => {
+		if ( e.key === 'Enter' ) {
+			e.preventDefault();
+			refs.widthDisplayEl.blur();
+		}
+		if ( e.key === 'Escape' ) {
+			e.preventDefault();
+			syncWidthDisplay();
+			refs.widthDisplayEl.blur();
+		}
+		e.stopPropagation();
+	} );
+	refs.stripEl.appendChild( refs.widthDisplayEl );
+
+	const divider0 = document.createElement( 'div' );
+	divider0.className = 'wpi-canvas-toolbar__divider';
+	refs.stripEl.appendChild( divider0 );
+
+	const vpRanges = {
+		Desktop: '1400+',
+		Tablet: '800\u20131399',
+		Mobile: '0\u2013799',
+	};
 
 	const pills = document.createElement( 'div' );
 	pills.className = 'wpi-canvas-toolbar__group';
@@ -121,7 +161,7 @@ export function injectStrip( onSwitchViewport, onDeactivate ) {
 		btn.setAttribute( 'type', 'button' );
 		btn.setAttribute(
 			'data-tooltip',
-			vp.label + ' \u2014 ' + vp.previewWidth + 'px'
+			vp.label + ' \u2014 ' + ( vpRanges[ vp.key ] || vp.previewWidth + 'px' )
 		);
 		btn.textContent = vp.label;
 		btn.addEventListener( 'click', () => onSwitchViewport( vp.key ) );
@@ -172,6 +212,75 @@ export function injectStrip( onSwitchViewport, onDeactivate ) {
 	fitBtn.setAttribute( 'data-tooltip', 'Fit all (\u2318+0)' );
 	actions.appendChild( fitBtn );
 
+	const playBtn = document.createElement( 'button' );
+	playBtn.className = 'wpi-canvas-toolbar__btn wpi-canvas-toolbar__play' +
+		( state.playing ? ' is-playing' : '' );
+	playBtn.setAttribute( 'type', 'button' );
+	playBtn.innerHTML = state.playing ? PAUSE_SVG : PLAY_SVG;
+	playBtn.setAttribute( 'aria-label',
+		state.playing ? 'Pause preview' : 'Play preview' );
+	playBtn.setAttribute( 'data-tooltip',
+		state.playing ? 'Pause (P)' : 'Preview (P)' );
+	playBtn.addEventListener( 'click', () => onTogglePlay?.() );
+	refs.playBtnEl = playBtn;
+	actions.appendChild( playBtn );
+
+	const a11yWrap = document.createElement( 'div' );
+	a11yWrap.className = 'wpi-canvas-toolbar__a11y-wrap';
+	const a11yBtn = mkBtn( '', () => {
+		a11yMenu.classList.toggle( 'is-open' );
+	} );
+	a11yBtn.innerHTML =
+		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
+		'<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
+	a11yBtn.setAttribute( 'aria-label', 'Accessibility preview' );
+	a11yBtn.setAttribute( 'data-tooltip', 'Accessibility' );
+	a11yBtn.classList.toggle( 'is-active', getAccessibilityMode() !== 'normal' );
+	refs.a11yBtnEl = a11yBtn;
+
+	const a11yMenu = document.createElement( 'div' );
+	a11yMenu.className = 'wpi-canvas-toolbar__a11y-menu';
+	A11Y_MODES.forEach( ( mode ) => {
+		const item = document.createElement( 'button' );
+		item.className = 'wpi-canvas-toolbar__a11y-item';
+		item.setAttribute( 'type', 'button' );
+		item.textContent = mode.label;
+		if ( mode.key === getAccessibilityMode() ) {
+			item.classList.add( 'is-selected' );
+		}
+		item.addEventListener( 'click', () => {
+			setAccessibilityMode( mode.key );
+			a11yMenu.querySelectorAll( '.wpi-canvas-toolbar__a11y-item' ).forEach( ( n ) => {
+				n.classList.toggle( 'is-selected', n.textContent === mode.label );
+			} );
+			a11yBtn.classList.toggle( 'is-active', mode.key !== 'normal' );
+			a11yMenu.classList.remove( 'is-open' );
+		} );
+		a11yMenu.appendChild( item );
+	} );
+
+	a11yWrap.appendChild( a11yBtn );
+	a11yWrap.appendChild( a11yMenu );
+	actions.appendChild( a11yWrap );
+
+	document.addEventListener( 'click', ( e ) => {
+		if ( ! a11yWrap.contains( e.target ) ) {
+			a11yMenu.classList.remove( 'is-open' );
+		}
+	} );
+
+	const chatBtn = mkBtn( '', () => {
+		if ( typeof window.wpiAiChatToggle === 'function' ) {
+			window.wpiAiChatToggle();
+		}
+	} );
+	chatBtn.innerHTML =
+		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
+		'<path d="M4 5h16v10H8l-4 4V5zm2 2v7.17L7.17 13H18V7H6z"/></svg>';
+	chatBtn.setAttribute( 'aria-label', 'Ask AI' );
+	chatBtn.setAttribute( 'data-tooltip', 'Ask AI' );
+	actions.appendChild( chatBtn );
+
 	const exitBtn = mkBtn( '', onDeactivate );
 	exitBtn.innerHTML =
 		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
@@ -183,27 +292,46 @@ export function injectStrip( onSwitchViewport, onDeactivate ) {
 	actions.appendChild( exitBtn );
 
 	refs.stripEl.appendChild( actions );
-	document.body.appendChild( refs.stripEl );
-	positionToolbar();
+	refs.contentEl.appendChild( refs.stripEl );
 
-	_toolbarResizeObserver = new ResizeObserver( positionToolbar );
-	_toolbarResizeObserver.observe( refs.contentEl );
-	window.addEventListener( 'resize', positionToolbar );
+	_contentResizeObserver = new ResizeObserver( () => {
+		if ( state.active ) {
+			fitAllFrames( true );
+		}
+	} );
+	_contentResizeObserver.observe( refs.contentEl );
 
 	updatePills();
 }
 
 export function removeStrip() {
-	if ( _toolbarResizeObserver ) {
-		_toolbarResizeObserver.disconnect();
-		_toolbarResizeObserver = null;
+	if ( _contentResizeObserver ) {
+		_contentResizeObserver.disconnect();
+		_contentResizeObserver = null;
 	}
-	window.removeEventListener( 'resize', positionToolbar );
 	if ( refs.stripEl ) {
 		refs.stripEl.remove();
 		refs.stripEl = null;
 		refs.zoomLabelEl = null;
+		refs.playBtnEl = null;
+		refs.a11yBtnEl = null;
 	}
+}
+
+export function syncWidthDisplay( widthPx ) {
+	if ( ! refs.widthDisplayEl ) {
+		return;
+	}
+	if ( document.activeElement === refs.widthDisplayEl ) {
+		return;
+	}
+	if ( widthPx !== undefined ) {
+		refs.widthDisplayEl.value = Math.round( widthPx ) + 'px';
+		return;
+	}
+	const vp = viewportByKey( state.viewport );
+	const w = state.customWidth || vp.previewWidth;
+	refs.widthDisplayEl.value = Math.round( w ) + 'px';
 }
 
 export function updatePills() {
@@ -219,14 +347,7 @@ export function updatePills() {
 			);
 		} );
 	syncZoomLabel();
-}
-
-export function injectSizeBadge() {
-	// Size badge removed in favor of unified toolbar.
-}
-
-export function removeSizeBadge() {
-	// Size badge removed.
+	syncWidthDisplay();
 }
 
 function mkBtn( text, handler ) {

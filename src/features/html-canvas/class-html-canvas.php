@@ -51,6 +51,16 @@ class WPI_HTML_Canvas {
       return '';
     }
 
+    if (
+      class_exists('WPI_Merge_Tag_Engine')
+      && strpos($html, '{{') !== false
+      && (! is_admin() || wp_doing_ajax())
+    ) {
+      $context = ['post_id' => get_the_ID() ?: 0];
+      $context = apply_filters('wpi_dynamic_data_render_context', $context, ['blockName' => 'wpi/html-canvas', 'attrs' => $attributes]);
+      $html = WPI_Merge_Tag_Engine::resolve($html, $context, true);
+    }
+
     $resize_script =
       '<script>(function(){function r(){var h=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight);'
       . 'parent.postMessage({wpiHC:1,h:h},"*")}if(typeof ResizeObserver!=="undefined"){'

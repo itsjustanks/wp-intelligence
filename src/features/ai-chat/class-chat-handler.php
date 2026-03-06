@@ -14,12 +14,12 @@ class WPI_Chat_Handler {
   }
 
   /**
-   * Process a user message, call the AI, save both messages, return the response.
+   * Process a user message with optional tool execution loop.
    *
-   * @param string      $message         The user's new message.
-   * @param string      $conversation_id Existing conversation UUID or empty for new.
-   * @param int         $user_id         WordPress user ID.
-   * @param array       $context         Current page context (url, post_id, post_type, post_title).
+   * @param string $message         The user's new message.
+   * @param string $conversation_id Existing conversation UUID or empty for new.
+   * @param int    $user_id         WordPress user ID.
+   * @param array  $context         Current page context from the client.
    * @return array|WP_Error
    */
   public function handle_message(string $message, string $conversation_id, int $user_id, array $context = []): array|WP_Error {
@@ -49,6 +49,115 @@ class WPI_Chat_Handler {
     $system_prompt = $this->build_system_prompt($context);
     $user_prompt   = $this->build_user_prompt($conversation_id, $user_id, $message);
 
+    $reply = $this->run_with_tools($system_prompt, $user_prompt, $context);
+
+    if (is_wp_error($reply)) {
+      return $reply;
+    }
+
+    $msg_id = $this->storage->save_message($conversation_id, $user_id, 'assistant', $reply);
+
+    return [
+      'message'         => $reply,
+      'conversation_id' => $conversation_id,
+      'message_id'      => $msg_id,
+    ];
+  }
+
+  /**
+   * Run the AI with tools, executing an agentic loop if the model requests tool calls.
+   */
+  private function run_with_tools(string $system_prompt, string $user_prompt, array $context): string|WP_Error {
+    $tools     = WPI_Chat_Tools::get_tool_definitions();
+    $max_iters = WPI_Chat_Tools::max_iterations();
+    $api_key   = $this->provider->get_api_key();
+
+    if ($api_key === '') {
+      return $this->run_simple($system_prompt, $user_prompt);
+    }
+
+    $body = [
+      'model'        => $this->provider->get_model(),
+      'instructions' => $system_prompt,
+      'input'        => $user_prompt,
+      'temperature'  => apply_filters('ai_composer_temperature', 0.4),
+      'store'        => false,
+      'tools'        => $tools,
+    ];
+
+    for ($iter = 0; $iter < $max_iters; $iter++) {
+      $response = wp_remote_post('https://api.openai.com/v1/responses', [
+        'headers' => [
+          'Content-Type'  => 'application/json',
+          'Authorization' => 'Bearer ' . $api_key,
+        ],
+        'body'    => wp_json_encode($body),
+        'timeout' => 120,
+      ]);
+
+      if (is_wp_error($response)) {
+        return new WP_Error('ai_composer_request_failed', $response->get_error_message(), ['status' => 502]);
+      }
+
+      $status = wp_remote_retrieve_response_code($response);
+      $data   = json_decode(wp_remote_retrieve_body($response), true);
+
+      if ($status !== 200) {
+        $msg = $data['error']['message'] ?? __('Unknown API error.', 'wp-intelligence');
+        return new WP_Error('ai_composer_api_error', $msg, ['status' => $status]);
+      }
+
+      $output        = $data['output'] ?? [];
+      $function_calls = [];
+      $text_reply     = '';
+
+      foreach ($output as $item) {
+        if (($item['type'] ?? '') === 'function_call') {
+          $function_calls[] = $item;
+        }
+        if (($item['type'] ?? '') === 'message') {
+          foreach ($item['content'] ?? [] as $content) {
+            if (($content['type'] ?? '') === 'output_text') {
+              $text_reply = $content['text'] ?? '';
+            }
+          }
+        }
+      }
+
+      if (empty($function_calls)) {
+        return $text_reply !== '' ? $text_reply : __('Sorry, I could not generate a response.', 'wp-intelligence');
+      }
+
+      $tool_results = [];
+      foreach ($function_calls as $fc) {
+        $tool_name = $fc['name'] ?? '';
+        $call_id   = $fc['call_id'] ?? '';
+        $args      = json_decode($fc['arguments'] ?? '{}', true);
+        if (! is_array($args)) {
+          $args = [];
+        }
+
+        $result = WPI_Chat_Tools::execute($tool_name, $args, $context);
+
+        $tool_results[] = [
+          'type'    => 'function_call_output',
+          'call_id' => $call_id,
+          'output'  => mb_substr($result, 0, 16000),
+        ];
+      }
+
+      $body['input'] = $tool_results;
+      $body['previous_response_id'] = $data['id'] ?? null;
+      unset($body['instructions']);
+    }
+
+    return __('I ran out of steps while working on your request. Please try a more specific question.', 'wp-intelligence');
+  }
+
+  /**
+   * Fallback: simple single-turn generation without tools (used when native WP AI client is active).
+   */
+  private function run_simple(string $system_prompt, string $user_prompt): string|WP_Error {
     $schema = [
       'type' => 'object',
       'properties' => [
@@ -73,13 +182,7 @@ class WPI_Chat_Handler {
       $reply = __('Sorry, I could not generate a response. Please try again.', 'wp-intelligence');
     }
 
-    $msg_id = $this->storage->save_message($conversation_id, $user_id, 'assistant', $reply);
-
-    return [
-      'message'         => $reply,
-      'conversation_id' => $conversation_id,
-      'message_id'      => $msg_id,
-    ];
+    return $reply;
   }
 
   private function build_system_prompt(array $context): string {
@@ -93,6 +196,12 @@ Respond in a conversational but professional tone.
 Use the same language as the user's message.
 If you don't know something, say so rather than guessing.
 Keep responses concise unless the user asks for detail.
+
+You have tools available to search and read site content, get site information, and access brand context. Use them proactively when the user's question relates to existing content or site data. Don't ask the user for information you can look up with your tools.
+
+When the user is editing a page in the block editor, you can use the read_current_page tool to see what they're working on. Use it when they ask about "this page", "the current content", or want improvements to what they're editing.
+
+You can use the get_available_blocks tool to see every registered block and pattern on this site, including their attributes and usage. Use it when the user asks about block capabilities, how to build a layout, or what blocks are available. This includes blocks from the theme, plugins, and core WordPress.
 PROMPT;
 
     if (! empty($context['post_title'])) {

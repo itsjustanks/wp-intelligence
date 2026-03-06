@@ -1,11 +1,11 @@
 import {
-	VIEWPORTS, FRAME_GAP, ROW_PADDING_X,
+	CANVAS_PADDING,
 	state, refs,
 } from './state';
 
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 2;
-const MIRROR_HEIGHT_CAP = 5000;
+const DEFAULT_SCALE = 0.9;
 
 const cam = { x: 0, y: 0, s: MIN_SCALE };
 
@@ -23,10 +23,10 @@ function clamp( v, lo, hi ) {
 
 function flush() {
 	rafId = 0;
-	if ( ! refs.canvasRowEl ) {
+	if ( ! refs.editorVisualEl ) {
 		return;
 	}
-	refs.canvasRowEl.style.transform =
+	refs.editorVisualEl.style.transform =
 		'matrix(' + cam.s + ',0,0,' + cam.s + ',' + cam.x + ',' + cam.y + ')';
 	syncZoomLabel();
 }
@@ -44,16 +44,16 @@ function renderNow() {
 }
 
 function beginSmooth() {
-	if ( ! refs.canvasRowEl ) {
+	if ( ! refs.editorVisualEl ) {
 		return;
 	}
 	clearTimeout( smoothTimer );
-	refs.canvasRowEl.classList.add( 'wpi-canvas-animating' );
+	refs.editorVisualEl.classList.add( 'wpi-canvas-animating' );
 }
 
 function endSmooth() {
 	smoothTimer = setTimeout( () => {
-		refs.canvasRowEl?.classList.remove( 'wpi-canvas-animating' );
+		refs.editorVisualEl?.classList.remove( 'wpi-canvas-animating' );
 	}, 400 );
 }
 
@@ -70,7 +70,7 @@ function applyCamera( smooth ) {
 /* ── Public lifecycle ──────────────────────── */
 
 export function initPanzoom() {
-	if ( ! refs.canvasRowEl || ! refs.contentEl ) {
+	if ( ! refs.editorVisualEl || ! refs.contentEl ) {
 		return;
 	}
 
@@ -187,66 +187,36 @@ export function syncZoomLabel() {
 	}
 }
 
-/* ── Fit all viewports ─────────────────────── */
-
-function measureFrames() {
-	let totalWidth = ROW_PADDING_X * 2;
-	let maxHeight = 0;
-	const frameEls = refs.canvasRowEl?.querySelectorAll(
-		'.wpi-canvas-frame'
-	);
-
-	if ( frameEls && frameEls.length ) {
-		frameEls.forEach( ( el, i ) => {
-			totalWidth += el.offsetWidth;
-			if ( i > 0 ) {
-				totalWidth += FRAME_GAP;
-			}
-			let h = el.offsetHeight;
-			if ( h > MIRROR_HEIGHT_CAP ) {
-				const vpKey = el.getAttribute( 'data-vp' );
-				const vpDef = VIEWPORTS.find( ( v ) => v.key === vpKey );
-				h = vpDef ? vpDef.previewHeight + 60 : MIRROR_HEIGHT_CAP;
-			}
-			maxHeight = Math.max( maxHeight, h );
-		} );
-		maxHeight += 60;
-	} else {
-		let fw = 0;
-		VIEWPORTS.forEach( ( vp ) => {
-			fw += vp.previewWidth;
-		} );
-		totalWidth += fw + FRAME_GAP * ( VIEWPORTS.length - 1 );
-		maxHeight =
-			Math.max(
-				...VIEWPORTS.map( ( vp ) => vp.previewHeight )
-			) + 48 + 96 + 60;
-	}
-
-	return { totalWidth, maxHeight };
-}
+/* ── Fit editor in viewport ────────────────── */
 
 export function fitAllFrames( smooth = false ) {
-	if ( ! refs.contentEl ) {
+	if ( ! refs.contentEl || ! refs.editorVisualEl ) {
 		return;
 	}
 
-	const { totalWidth, maxHeight } = measureFrames();
 	const availW = Math.max( 360, refs.contentEl.clientWidth );
-	const availH = Math.max( 300, refs.contentEl.clientHeight );
-	const fitScale = clamp(
-		Math.min( availW / totalWidth, availH / maxHeight ),
-		MIN_SCALE,
-		MAX_SCALE
-	);
+	const editorW = ( refs.editorVisualEl.offsetWidth || 1440 ) + CANVAS_PADDING * 2;
+	const maxFit = clamp( availW / editorW, MIN_SCALE, MAX_SCALE );
+	const targetScale = clamp( Math.min( DEFAULT_SCALE, maxFit ), MIN_SCALE, MAX_SCALE );
 
-	const scaledW = totalWidth * fitScale;
-	const scaledH = maxHeight * fitScale;
+	const scaledW = editorW * targetScale;
 
-	cam.s = fitScale;
+	cam.s = targetScale;
 	cam.x = Math.max( 0, ( availW - scaledW ) / 2 );
-	cam.y = Math.max( 0, ( availH - scaledH ) / 2 );
+	cam.y = 24;
 	applyCamera( smooth );
+}
+
+/* ── Recenter horizontally (keeps scale + Y) ── */
+
+export function recenterX( editorWidth ) {
+	if ( ! refs.contentEl ) {
+		return;
+	}
+	const availW = Math.max( 360, refs.contentEl.clientWidth );
+	const scaledW = ( editorWidth + CANVAS_PADDING * 2 ) * cam.s;
+	cam.x = Math.max( 0, ( availW - scaledW ) / 2 );
+	renderNow();
 }
 
 /* ── Zoom step (toolbar +/−) ───────────────── */
@@ -266,78 +236,6 @@ export function zoomStep( delta ) {
 	applyCamera( true );
 }
 
-/* ── Scroll live frame into view ───────────── */
-
-export function scrollActiveFrameIntoView( center ) {
-	if ( ! refs.canvasRowEl || ! refs.contentEl ) {
-		return;
-	}
-	const liveFrame = refs.canvasRowEl.querySelector(
-		'.wpi-canvas-frame--live'
-	);
-	if ( ! liveFrame || ! center ) {
-		return;
-	}
-
-	const availW = refs.contentEl.clientWidth;
-	const availH = refs.contentEl.clientHeight;
-
-	cam.x =
-		availW / 2 -
-		( liveFrame.offsetLeft + liveFrame.offsetWidth / 2 ) * cam.s;
-	cam.y = Math.max(
-		0,
-		( availH - liveFrame.offsetHeight * cam.s ) / 2
-	);
-	applyCamera( true );
-}
-
-/* ── Focus a single viewport frame ─────────── */
-
-export function focusViewportFrame( key, smooth = true ) {
-	if ( ! refs.canvasRowEl || ! refs.contentEl ) {
-		return;
-	}
-
-	const targetFrame = refs.canvasRowEl.querySelector(
-		`[data-vp="${ key }"]`
-	);
-	if ( ! targetFrame ) {
-		return;
-	}
-
-	let targetVp = VIEWPORTS[ 0 ];
-	for ( let i = 0; i < VIEWPORTS.length; i++ ) {
-		if ( VIEWPORTS[ i ].key === key ) {
-			targetVp = VIEWPORTS[ i ];
-			break;
-		}
-	}
-
-	const availW = Math.max( 360, refs.contentEl.clientWidth );
-	const availH = Math.max( 300, refs.contentEl.clientHeight );
-	const insetX = 72;
-	const insetY = 88;
-	const frameWidth = targetVp.previewWidth;
-	const frameHeight = targetVp.previewHeight + 48;
-
-	const usableW = Math.max( 240, availW - insetX * 2 );
-	const usableH = Math.max( 220, availH - insetY * 2 );
-	const focusScale = clamp(
-		Math.min( usableW / frameWidth, usableH / frameHeight ),
-		MIN_SCALE,
-		MAX_SCALE
-	);
-
-	const centerX = targetFrame.offsetLeft + targetFrame.offsetWidth / 2;
-	const centerY = targetFrame.offsetTop + frameHeight / 2;
-
-	cam.s = focusScale;
-	cam.x = availW / 2 - centerX * focusScale;
-	cam.y = availH / 2 - centerY * focusScale;
-	applyCamera( smooth );
-}
-
 /* ── Reset ─────────────────────────────────── */
 
 export function resetCanvas() {
@@ -347,8 +245,9 @@ export function resetCanvas() {
 	cam.x = 0;
 	cam.y = 0;
 	cam.s = MIN_SCALE;
-	if ( refs.canvasRowEl ) {
-		refs.canvasRowEl.style.transform = '';
+	if ( refs.editorVisualEl ) {
+		refs.editorVisualEl.style.transform = '';
+		refs.editorVisualEl.classList.remove( 'wpi-canvas-animating' );
 	}
 }
 

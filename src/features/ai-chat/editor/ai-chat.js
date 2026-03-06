@@ -19,12 +19,14 @@
   var drawerEl = null;
   var fullscreenEl = null;
 
-  var SUGGESTIONS = [
-    { icon: 'edit', text: 'Help me write a blog post' },
-    { icon: 'search', text: 'Suggest SEO improvements' },
-    { icon: 'lightbulb', text: 'Give me content ideas' },
-    { icon: 'admin-tools', text: 'Help with WordPress tasks' },
-  ];
+  var SKILLS = (config.skills && config.skills.length > 0)
+    ? config.skills
+    : [
+        { id: 'blog-post', icon: 'edit', label: 'Help me write a blog post', prompt: 'Help me write a blog post' },
+        { id: 'seo', icon: 'search', label: 'Suggest SEO improvements', prompt: 'Suggest SEO improvements' },
+        { id: 'ideas', icon: 'lightbulb', label: 'Give me content ideas', prompt: 'Give me content ideas' },
+        { id: 'tasks', icon: 'admin-tools', label: 'Help with WordPress tasks', prompt: 'Help with WordPress tasks' },
+      ];
 
   function getPageContext() {
     var ctx = { admin_page: window.location.href };
@@ -36,6 +38,30 @@
           ctx.post_id = postId;
           ctx.post_type = editor.getCurrentPostType() || '';
           ctx.post_title = editor.getEditedPostAttribute('title') || '';
+        }
+
+        var blockEditor = wp.data.select('core/block-editor');
+        if (blockEditor) {
+          ctx.block_count = blockEditor.getBlockCount() || 0;
+
+          var selectedId = blockEditor.getSelectedBlockClientId();
+          if (selectedId) {
+            var selectedBlock = blockEditor.getBlock(selectedId);
+            if (selectedBlock) {
+              ctx.selected_block = {
+                name: selectedBlock.name,
+                attributes: selectedBlock.attributes,
+              };
+            }
+          }
+
+          var content = '';
+          try {
+            content = editor.getEditedPostContent() || '';
+          } catch (e2) {}
+          if (content) {
+            ctx.page_content = content.substring(0, 12000);
+          }
         }
       }
     } catch (e) {}
@@ -106,11 +132,11 @@
 
   function buildSuggestionsHtml() {
     var html = '<div class="wpi-chat-suggestions">';
-    SUGGESTIONS.forEach(function (s) {
+    SKILLS.forEach(function (s) {
       html +=
-        '<button class="wpi-chat-suggestion" data-prompt="' + escHtml(s.text) + '">' +
-          '<span class="dashicons dashicons-' + s.icon + '"></span>' +
-          '<span>' + escHtml(s.text) + '</span>' +
+        '<button class="wpi-chat-suggestion" data-prompt="' + escHtml(s.prompt || s.label) + '">' +
+          '<span class="dashicons dashicons-' + (s.icon || 'lightbulb') + '"></span>' +
+          '<span>' + escHtml(s.label || s.prompt) + '</span>' +
         '</button>';
     });
     html += '</div>';
@@ -523,6 +549,104 @@
       });
   }
 
+  function isBlockEditorContext() {
+    if (config.isBlockEditor) {
+      return true;
+    }
+
+    return !!document.querySelector(
+      '.block-editor-page, .edit-post-layout, .interface-interface-skeleton'
+    );
+  }
+
+  function injectEditorHeaderTrigger() {
+    if (document.getElementById('wpi-ai-chat-editor-trigger')) {
+      return true;
+    }
+
+    var headerTarget = document.querySelector(
+      '.editor-header__settings, .edit-post-header__settings'
+    );
+    if (!headerTarget) {
+      return false;
+    }
+
+    var button = document.createElement('button');
+    button.id = 'wpi-ai-chat-editor-trigger';
+    button.type = 'button';
+    button.className = 'components-button wpi-chat-editor-trigger';
+    button.setAttribute('aria-label', __('Ask AI', 'wp-intelligence'));
+    button.innerHTML =
+      '<span class="dashicons dashicons-format-chat" aria-hidden="true"></span>' +
+      '<span class="wpi-chat-editor-trigger__label">' + escHtml(__('Ask AI', 'wp-intelligence')) + '</span>';
+
+    button.addEventListener('click', function (e) {
+      e.preventDefault();
+      toggleDrawer();
+    });
+
+    headerTarget.insertBefore(button, headerTarget.firstChild || null);
+    return true;
+  }
+
+  function registerEditorMoreMenuItem() {
+    if (!window.wp || !wp.plugins || !wp.element) {
+      return false;
+    }
+
+    if (window.wpiAiChatPluginRegistered) {
+      return true;
+    }
+
+    var registerPlugin = wp.plugins.registerPlugin;
+    var PluginMoreMenuItem =
+      (wp.editor && wp.editor.PluginMoreMenuItem) ||
+      (wp.editPost && wp.editPost.PluginMoreMenuItem);
+
+    if (!registerPlugin || !PluginMoreMenuItem) {
+      return false;
+    }
+
+    window.wpiAiChatPluginRegistered = true;
+
+    registerPlugin('wpi-ai-chat-editor-menu', {
+      render: function () {
+        return wp.element.createElement(
+          PluginMoreMenuItem,
+          {
+            icon: 'format-chat',
+            onClick: toggleDrawer,
+          },
+          __('Ask AI', 'wp-intelligence')
+        );
+      },
+    });
+
+    return true;
+  }
+
+  function initBlockEditorAccess() {
+    if (!isBlockEditorContext()) {
+      return;
+    }
+
+    registerEditorMoreMenuItem();
+
+    if (injectEditorHeaderTrigger()) {
+      return;
+    }
+
+    var attempts = 0;
+    var maxAttempts = 20;
+    var timer = setInterval(function () {
+      attempts++;
+      registerEditorMoreMenuItem();
+      if (injectEditorHeaderTrigger() || attempts >= maxAttempts) {
+        clearInterval(timer);
+      }
+    }, 500);
+  }
+
   /* ──────────────────────────────────────────────
    *  Fullscreen page mode
    * ────────────────────────────────────────────── */
@@ -594,6 +718,8 @@
     if (config.isFullscreen) {
       initFullscreenPage();
     }
+
+    initBlockEditorAccess();
 
     var trigger = document.querySelector('#wp-admin-bar-wpi-ai-chat-toggle a');
     if (trigger) {

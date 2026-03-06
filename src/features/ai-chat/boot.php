@@ -4,6 +4,8 @@ if (! defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/class-chat-storage.php';
+require_once __DIR__ . '/class-chat-skills.php';
+require_once __DIR__ . '/class-chat-tools.php';
 require_once __DIR__ . '/class-chat-handler.php';
 require_once __DIR__ . '/class-ai-chat.php';
 

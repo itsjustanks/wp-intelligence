@@ -15,21 +15,35 @@ const DEBOUNCE_MS = 350;
 
 let cachedTags = null;
 
+function normalizeTags( raw ) {
+	return ( raw || [] ).map( ( t ) => ( {
+		tag: t.tag,
+		label: t.label || t.tag,
+		group: t.group || t.source || '',
+		snippet: t.snippet || '',
+	} ) );
+}
+
 function useMergeTags() {
-	const [ tags, setTags ] = useState( cachedTags || [] );
+	const [ tags, setTags ] = useState( () => {
+		if ( cachedTags ) {
+			return cachedTags;
+		}
+		const localized = window.wpiDynamicDataConfig?.tags;
+		if ( localized?.length ) {
+			cachedTags = normalizeTags( localized );
+			return cachedTags;
+		}
+		return [];
+	} );
 
 	useEffect( () => {
-		if ( cachedTags ) {
+		if ( cachedTags?.length ) {
 			return;
 		}
 		apiFetch( { path: '/wpi-dynamic-data/v1/tags' } ).then( ( res ) => {
-			const list = ( res?.tags || [] ).map( ( t ) => ( {
-				tag: t.tag,
-				label: t.label || t.tag,
-				group: t.group || t.source || '',
-			} ) );
-			cachedTags = list;
-			setTags( list );
+			cachedTags = normalizeTags( res?.tags );
+			setTags( cachedTags );
 		} ).catch( () => {} );
 	}, [] );
 
@@ -61,23 +75,27 @@ function useAutocomplete( textareaRef, tags, content, setAttributes, schedulePre
 	}, [] );
 
 	const accept = useCallback(
-		( tag ) => {
+		( item ) => {
 			const ta = textareaRef.current;
 			if ( ! ta ) {
 				return;
 			}
 			const before = content.substring( 0, startRef.current );
 			const after = content.substring( ta.selectionStart );
-			const insert = '{{' + tag + '}}';
-			const next = before + insert + after;
+			const insertText = item.snippet || ( '{{' + item.tag + '}}' );
+			const next = before + insertText + after;
 			setAttributes( { content: next } );
 			schedulePreview( next );
 			close();
-			const cursorPos = before.length + insert.length;
+
+			const cursorTarget = item.snippet
+				? before.length + insertText.indexOf( '\n' ) + 3
+				: before.length + insertText.length;
+
 			requestAnimationFrame( () => {
 				ta.focus();
-				ta.selectionStart = cursorPos;
-				ta.selectionEnd = cursorPos;
+				ta.selectionStart = cursorTarget;
+				ta.selectionEnd = cursorTarget;
 			} );
 		},
 		[ content, close, setAttributes, schedulePreview, textareaRef ]
@@ -146,7 +164,7 @@ function useAutocomplete( textareaRef, tags, content, setAttributes, schedulePre
 			}
 			if ( e.key === 'Enter' || e.key === 'Tab' ) {
 				e.preventDefault();
-				accept( filtered[ idx ].tag );
+				accept( filtered[ idx ] );
 				return true;
 			}
 			if ( e.key === 'Escape' ) {
@@ -188,20 +206,23 @@ function AutocompleteDropdown( { items, activeIdx, pos, onSelect } ) {
 		createElement(
 			'ul',
 			{ ref: listRef, className: 'wpi-hc-ac__list', role: 'listbox' },
-			items.slice( 0, 30 ).map( ( item, i ) =>
+			items.slice( 0, 40 ).map( ( item, i ) =>
 				createElement(
 					'li',
 					{
 						key: item.tag,
 						role: 'option',
 						'aria-selected': i === activeIdx,
-						className: 'wpi-hc-ac__item' + ( i === activeIdx ? ' wpi-hc-ac__item--active' : '' ),
+						className: 'wpi-hc-ac__item' + ( i === activeIdx ? ' wpi-hc-ac__item--active' : '' ) + ( item.snippet ? ' wpi-hc-ac__item--snippet' : '' ),
 						onMouseDown: ( e ) => {
 							e.preventDefault();
-							onSelect( item.tag );
+							onSelect( item );
 						},
 					},
-					createElement( 'span', { className: 'wpi-hc-ac__tag' }, '{{' + item.tag + '}}' ),
+					item.snippet
+						? createElement( 'span', { className: 'wpi-hc-ac__badge' }, '#if' )
+						: null,
+					createElement( 'span', { className: 'wpi-hc-ac__tag' }, item.snippet ? item.tag : '{{' + item.tag + '}}' ),
 					createElement( 'span', { className: 'wpi-hc-ac__label' }, item.label )
 				)
 			)

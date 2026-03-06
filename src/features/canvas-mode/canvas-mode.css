@@ -1,4 +1,6 @@
-/* Canvas Mode: inline editor canvas with side-by-side viewport frames */
+/* Canvas Mode — lean panzoom preview over native Gutenberg editor */
+
+/* ── Toggle button ─────────────────────────── */
 
 .wpi-canvas-toggle {
   align-items: center;
@@ -29,21 +31,27 @@
   display: block;
 }
 
-/* Floating bottom toolbar */
+/* ── Floating bottom toolbar ───────────────── */
+
 #wpi-canvas-toolbar {
   align-items: center;
   backdrop-filter: blur(12px);
   background: rgba(30, 30, 30, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
+  bottom: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   display: flex;
   gap: 4px;
+  left: 50%;
   padding: 4px 6px;
   pointer-events: auto;
-  position: fixed;
+  position: absolute;
+  transform: translateX(-50%);
   z-index: 99999;
 }
+
+/* width input is styled below in the editable width input section */
 
 .wpi-canvas-toolbar__group {
   align-items: center;
@@ -121,6 +129,14 @@
   width: 16px;
 }
 
+.wpi-canvas-toolbar__play.is-playing {
+  color: #66bb6a;
+}
+
+.wpi-canvas-toolbar__play.is-playing:hover {
+  background: rgba(76, 175, 80, 0.18);
+}
+
 .wpi-canvas-toolbar__exit {
   color: rgba(255, 80, 80, 0.8);
 }
@@ -161,7 +177,8 @@
   transform: translateX(-50%) translateY(0);
 }
 
-/* Canvas surface */
+/* ── Canvas surface ────────────────────────── */
+
 body.wpi-canvas-mode-active .interface-interface-skeleton__content,
 body.wpi-canvas-mode-active .edit-post-layout__content {
   background: #101010 !important;
@@ -184,181 +201,59 @@ body.wpi-canvas-mode-active .edit-post-layout__content.wpi-canvas-is-panning {
   cursor: grabbing;
 }
 
-#wpi-canvas-row {
-  align-items: flex-start;
-  display: flex;
-  gap: 48px;
-  left: 0;
-  padding: 48px 56px 96px;
-  position: absolute;
+/* ── Panzoom target: the editor visual itself ── */
+
+body.wpi-canvas-mode-active .editor-visual-editor,
+body.wpi-canvas-mode-active .edit-post-visual-editor {
+  height: auto !important;
+  position: absolute !important;
   top: 0;
+  left: 0;
   transform-origin: 0 0;
-  width: max-content;
+}
+
+body.wpi-canvas-mode-active .editor-resizable-editor {
+  height: auto !important;
+  max-height: none !important;
+}
+
+body.wpi-canvas-mode-active .block-editor-iframe__scale-container {
+  margin: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+
+body.wpi-canvas-mode-active iframe[name="editor-canvas"] {
+  min-height: 0 !important;
+}
+
+body.wpi-canvas-mode-active .editor-visual-editor.wpi-canvas-animating,
+body.wpi-canvas-mode-active .edit-post-visual-editor.wpi-canvas-animating {
+  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   will-change: transform;
 }
 
-/* Smooth programmatic zoom/pan — toggled via JS class */
-#wpi-canvas-row.wpi-canvas-animating {
-  transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
-}
+/* ── Hide competing UI in canvas mode ──────── */
 
-.wpi-canvas-frame {
-  border: 0;
-  flex: 0 0 auto;
-  font: inherit;
-  text-align: left;
-  width: var(--wpi-frame-width, 1024px);
-}
-
-.wpi-canvas-frame__label {
-  align-items: baseline;
-  color: rgba(255, 255, 255, 0.85);
-  cursor: pointer;
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.wpi-canvas-frame__name {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.wpi-canvas-frame__dims {
-  color: rgba(255, 255, 255, 0.4);
-  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
-  font-size: 11px;
-  line-height: 1;
-}
-
-.wpi-canvas-frame__viewport {
-  background: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
-}
-
-.wpi-canvas-frame--live.is-active .wpi-canvas-frame__viewport {
-  border-color: var(--wp-admin-theme-color, #3858e9);
-  box-shadow:
-    0 0 0 1px var(--wp-admin-theme-color, #3858e9),
-    0 14px 46px rgba(0, 0, 0, 0.52);
-}
-
-.wpi-canvas-frame--mirror {
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-}
-
-.wpi-canvas-frame--mirror:hover .wpi-canvas-frame__viewport {
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.wpi-canvas-frame__mirror {
-  border: 0;
-  content-visibility: visible;
-  display: block;
-  pointer-events: none;
-}
-
-/* Make the live editor behave as a framed canvas */
-.wpi-canvas-frame--live .editor-visual-editor,
-.wpi-canvas-frame--live .edit-post-visual-editor {
-  background: #fff;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  margin: 0 !important;
-}
-
-.wpi-canvas-frame--live .editor-visual-editor .components-resizable-box__container,
-.wpi-canvas-frame--live .edit-post-visual-editor .components-resizable-box__container {
-  margin: 0 auto !important;
-  max-width: var(--wpi-frame-width, 1024px) !important;
-  width: var(--wpi-frame-width, 1024px) !important;
-}
-
-.wpi-canvas-frame--live iframe[name="editor-canvas"] {
-  border-radius: 0 !important;
-  display: block;
-  height: 100% !important;
-  min-height: 100% !important;
-}
-
-.wpi-canvas-frame--live .editor-visual-editor,
-.wpi-canvas-frame--live .edit-post-visual-editor {
-  height: auto !important;
-  overflow: visible !important;
-}
-
-.wpi-canvas-frame--live .components-resizable-box__container {
-  height: auto !important;
-  max-height: none !important;
-  min-height: 100% !important;
-  overflow: visible !important;
-  resize: none !important;
-}
-
-.wpi-canvas-frame--live > .wpi-canvas-frame__viewport {
-  overflow: visible;
-  position: relative;
-}
-
-/* Backdrop: frontend preview behind the editor */
-.wpi-canvas-frame__backdrop {
-  border: 0;
-  display: block;
-  left: 0;
-  pointer-events: none;
-  position: absolute;
-  top: 0;
-  width: 100%;
-  z-index: 0;
-}
-
-/* Spacers sit in front of the backdrop, transparent so header/footer show through */
-.wpi-canvas-frame__spacer {
-  pointer-events: none;
-  position: relative;
-  z-index: 1;
-}
-
-/* Editor visual sits between spacers at z-index 1 */
-.wpi-canvas-frame--live .editor-visual-editor,
-.wpi-canvas-frame--live .edit-post-visual-editor {
-  position: relative;
-  z-index: 1;
-}
-
-/* Hide duplicated Nectar toolbar when canvas mode is active */
 body.wpi-canvas-mode-active #nectar-responsive-device-toolbar {
   display: none !important;
 }
 
-/* Sidebar remains untouched */
+body.wpi-canvas-mode-active .editor-post-title,
+body.wpi-canvas-mode-active .editor-post-title__block,
+body.wpi-canvas-mode-active .edit-post-visual-editor__post-title-wrapper {
+  display: none !important;
+}
+
+/* Sidebar remains above the canvas */
 body.wpi-canvas-mode-active .interface-interface-skeleton__sidebar {
   position: relative;
   z-index: 32;
 }
 
-@media (max-width: 1300px) {
+/* ── Loading overlay ───────────────────────── */
 
-  .wpi-canvas-frame__name {
-    font-size: 12px;
-  }
-
-  #wpi-canvas-row {
-    gap: 32px;
-    padding: 40px 40px 80px;
-  }
-}
-
-/* Loading overlay */
 #wpi-canvas-loading {
   align-items: center;
   background: #101010;
@@ -411,86 +306,192 @@ body.wpi-canvas-mode-active .interface-interface-skeleton__sidebar {
   to { transform: rotate(360deg); }
 }
 
-/* Play / pause toggle on frame label */
-.wpi-canvas-frame__play-btn {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: none;
+/* ── Editable width input ──────────────────── */
+
+.wpi-canvas-toolbar__width {
+  appearance: none;
+  background: none;
+  border: 1px solid transparent;
   border-radius: 4px;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  display: inline-flex;
-  height: 20px;
-  justify-content: center;
-  margin-left: auto;
-  padding: 0;
-  transition: background 0.12s, color 0.12s;
-  width: 20px;
-}
-
-.wpi-canvas-frame__play-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.wpi-canvas-frame__play-btn.is-playing {
-  background: rgba(76, 175, 80, 0.18);
-  color: #66bb6a;
-}
-
-.wpi-canvas-frame__play-btn.is-playing:hover {
-  background: rgba(76, 175, 80, 0.28);
-}
-
-.wpi-canvas-frame__play-btn[data-tooltip] {
-  position: relative;
-}
-
-.wpi-canvas-frame__play-btn[data-tooltip]::after {
-  background: #000;
-  border-radius: 4px;
-  bottom: calc(100% + 6px);
-  color: #fff;
-  content: attr(data-tooltip);
-  font-size: 11px;
+  box-sizing: border-box;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  font-size: 12px;
   font-weight: 500;
+  letter-spacing: -0.01em;
+  min-width: 48px;
+  outline: none;
+  padding: 2px 4px;
+  text-align: center;
+  transition: border-color 0.12s ease, background 0.12s ease;
+  width: 64px;
+}
+
+.wpi-canvas-toolbar__width:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.wpi-canvas-toolbar__width:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--wp-admin-theme-color, #3858e9);
+}
+
+/* ── Resize drag handles ──────────────────── */
+
+.wpi-canvas-resize-handle {
+  cursor: ew-resize;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  width: 8px;
+  z-index: 10;
+}
+
+.wpi-canvas-resize-handle--left {
+  left: -4px;
+}
+
+.wpi-canvas-resize-handle--right {
+  right: -4px;
+}
+
+.wpi-canvas-resize-handle::after {
+  background: var(--wp-admin-theme-color, #3858e9);
+  border-radius: 3px;
+  content: "";
+  height: 40px;
   left: 50%;
-  line-height: 1;
   opacity: 0;
-  padding: 4px 7px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.15s ease;
+  width: 4px;
+}
+
+.wpi-canvas-resize-handle:hover::after,
+.wpi-canvas-resize-handle.is-dragging::after {
+  opacity: 1;
+}
+
+body.wpi-canvas-resizing {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+
+body.wpi-canvas-resizing iframe {
+  pointer-events: none !important;
+}
+
+/* ── Snap indicator ───────────────────────── */
+
+.wpi-canvas-snap-indicator {
+  background: var(--wp-admin-theme-color, #3858e9);
+  border-radius: 4px;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  left: 50%;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  padding: 3px 10px;
   pointer-events: none;
   position: absolute;
-  transform: translateX(-50%) translateY(2px);
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  top: -28px;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
   white-space: nowrap;
+  z-index: 11;
 }
 
-.wpi-canvas-frame__play-btn[data-tooltip]:hover::after {
+.wpi-canvas-snap-indicator.is-visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
-/* Hide post title in canvas mode (non-iframed editors) */
-body.wpi-canvas-mode-active .editor-post-title,
-body.wpi-canvas-mode-active .editor-post-title__block,
-body.wpi-canvas-mode-active .edit-post-visual-editor__post-title-wrapper {
-  display: none !important;
+/* ── Active toolbar button state ──────────── */
+
+.wpi-canvas-toolbar__btn.is-active {
+  color: var(--wp-admin-theme-color, #3858e9);
 }
+
+.wpi-canvas-toolbar__btn.is-active:hover {
+  background: rgba(56, 88, 233, 0.15);
+}
+
+/* ── Accessibility dropdown ───────────────── */
+
+.wpi-canvas-toolbar__a11y-wrap {
+  position: relative;
+}
+
+.wpi-canvas-toolbar__a11y-menu {
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  bottom: calc(100% + 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: none;
+  left: 50%;
+  min-width: 160px;
+  padding: 4px;
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 100001;
+}
+
+.wpi-canvas-toolbar__a11y-menu.is-open {
+  display: block;
+}
+
+.wpi-canvas-toolbar__a11y-item {
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  padding: 6px 12px;
+  text-align: left;
+  transition: background 0.1s ease, color 0.1s ease;
+  width: 100%;
+}
+
+.wpi-canvas-toolbar__a11y-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.wpi-canvas-toolbar__a11y-item.is-selected {
+  background: rgba(56, 88, 233, 0.2);
+  color: var(--wp-admin-theme-color, #3858e9);
+}
+
+/* ── Reduced motion ────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
 
   .wpi-canvas-toggle,
   .wpi-canvas-toolbar__pill,
-  .wpi-canvas-toolbar__btn,
-  .wpi-canvas-frame--mirror .wpi-canvas-frame__viewport {
+  .wpi-canvas-toolbar__btn {
     transition: none !important;
   }
 
-  #wpi-canvas-row.wpi-canvas-animating {
+  body.wpi-canvas-mode-active .editor-visual-editor.wpi-canvas-animating,
+  body.wpi-canvas-mode-active .edit-post-visual-editor.wpi-canvas-animating {
     transition: none !important;
   }
 
   .wpi-canvas-loading__spinner {
     animation: none;
+  }
+
+  .wpi-canvas-resize-handle::after,
+  .wpi-canvas-snap-indicator {
+    transition: none !important;
   }
 }

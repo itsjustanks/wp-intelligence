@@ -79,10 +79,17 @@ class WPI_AI_Chat {
     }
 
     $deps = ['wp-api-fetch', 'wp-i18n'];
+    $is_block_editor = false;
     if (function_exists('get_current_screen')) {
       $screen = get_current_screen();
       if ($screen && $screen->is_block_editor()) {
+        $is_block_editor = true;
         $deps[] = 'wp-data';
+        $deps[] = 'wp-dom-ready';
+        $deps[] = 'wp-element';
+        $deps[] = 'wp-plugins';
+        $deps[] = 'wp-edit-post';
+        $deps[] = 'wp-editor';
       }
     }
 
@@ -115,8 +122,11 @@ class WPI_AI_Chat {
       'siteUrl'       => home_url(),
       'siteName'      => get_bloginfo('name'),
       'hasProvider'   => $this->provider->is_available(),
+      'hasTools'      => ($this->provider->get_api_key() !== ''),
+      'isBlockEditor' => $is_block_editor,
       'isFullscreen'  => $is_fullscreen,
       'pageUrl'       => admin_url('admin.php?page=' . self::PAGE_SLUG),
+      'skills'        => WPI_Chat_Skills::get_skills_for_frontend(),
     ]);
   }
 

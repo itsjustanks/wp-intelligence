@@ -6,23 +6,18 @@ import { subscribe } from '@wordpress/data';
 import {
 	state, refs,
 	getContentArea, getEditorVisual,
-	getEditorStylesWrapper, getEditorDoc,
+	viewportByKey, applyDeviceSwitch,
+	getEditorDeviceType, getViewportForDeviceType,
 } from './state';
 import {
 	initPanzoom,
 	destroyPanzoom,
 	fitAllFrames,
-	focusViewportFrame,
 	resetCanvas,
 	syncZoomLabel,
 } from './canvas';
 import {
 	waitForEditorReady,
-	rebuildCanvasFrames,
-	syncMirrorBodies,
-	syncBackdropContentHeight,
-	stopMirrorObserver,
-	removeCanvasRow,
 	updatePlayButton,
 } from './frames';
 import {
@@ -36,123 +31,11 @@ import { bindShortcuts } from './shortcuts';
 import { shouldAutoActivate } from './auto-activate';
 import {
 	freezeEditorAnimations, unfreezeEditorAnimations,
-	expandEditorIframe, restoreEditorIframe,
+	cleanupEditorIframe, startHeightSync,
 } from './editor-iframe';
-
-let _saveWatcher = null;
-
-function startSaveWatcher() {
-	if ( _saveWatcher ) {
-		return;
-	}
-	let wasSaving = false;
-	_saveWatcher = subscribe( () => {
-		if ( ! state.active ) {
-			return;
-		}
-		try {
-			const saving = window.wp.data.select( 'core/editor' ).isSavingPost();
-			if ( wasSaving && ! saving ) {
-				setTimeout( syncMirrorBodies, 800 );
-			}
-			wasSaving = saving;
-		} catch ( e ) {} // eslint-disable-line no-empty
-	} );
-}
-
-function stopSaveWatcher() {
-	_saveWatcher?.();
-	_saveWatcher = null;
-}
-
-function getCleanContent() {
-	try {
-		const content = window.wp?.data?.select?.( 'core/editor' )
-			?.getEditedPostContent?.();
-		if ( content ) {
-			return content;
-		}
-	} catch ( e ) {} // eslint-disable-line no-empty
-	const wrapper = getEditorStylesWrapper();
-	return wrapper ? wrapper.innerHTML : '';
-}
-
-function pushContentToFrames() {
-	const html = getCleanContent();
-	if ( ! html ) {
-		return;
-	}
-	const msg = { type: 'wpi-content', html };
-
-	refs.mirrorFrames.forEach( ( item ) => {
-		try {
-			item.iframeEl?.contentWindow?.postMessage( msg, '*' );
-		} catch ( e ) {} // eslint-disable-line no-empty
-	} );
-
-	try {
-		refs.backdropEl?.contentWindow?.postMessage( msg, '*' );
-	} catch ( e ) {} // eslint-disable-line no-empty
-
-	syncBackdropContentHeight();
-}
-
-function startContentPush() {
-	stopContentPush();
-	const editorDoc = getEditorDoc();
-	const wrapper = getEditorStylesWrapper( editorDoc );
-	if ( ! wrapper || ! editorDoc ) {
-		setTimeout( startContentPush, 500 );
-		return;
-	}
-
-	const IframeMutationObserver =
-		editorDoc.defaultView?.MutationObserver || MutationObserver;
-
-	refs.contentPushObserver = new IframeMutationObserver( () => {
-		clearTimeout( refs.contentPushTimer );
-		refs.contentPushTimer = setTimeout( pushContentToFrames, 300 );
-
-		clearTimeout( refs.autosaveTimer );
-		refs.autosaveTimer = setTimeout( triggerAutosave, 3000 );
-	} );
-	refs.contentPushObserver.observe( wrapper, {
-		childList: true,
-		subtree: true,
-		characterData: true,
-		attributes: true,
-	} );
-
-	setTimeout( pushContentToFrames, 600 );
-}
-
-function stopContentPush() {
-	if ( refs.contentPushObserver ) {
-		refs.contentPushObserver.disconnect();
-		refs.contentPushObserver = null;
-	}
-	clearTimeout( refs.contentPushTimer );
-	refs.contentPushTimer = null;
-	clearTimeout( refs.autosaveTimer );
-	refs.autosaveTimer = null;
-}
-
-function triggerAutosave() {
-	if ( ! state.active ) {
-		return;
-	}
-	try {
-		const select = window.wp?.data?.select?.( 'core/editor' );
-		if ( ! select ) {
-			return;
-		}
-		const dirty = select.isEditedPostDirty?.() ?? false;
-		const saving = select.isSavingPost?.() ?? false;
-		if ( dirty && ! saving ) {
-			window.wp.data.dispatch( 'core/editor' ).autosave();
-		}
-	} catch ( e ) {} // eslint-disable-line no-empty
-}
+import { initResponsive, destroyResponsive, clearCustomWidth } from './responsive';
+import { cleanupAccessibility, reapplyAccessibility } from './accessibility';
+import { loadTemplateChrome, cleanupTemplateChrome } from './template-chrome';
 
 function togglePlay() {
 	state.playing = ! state.playing;
@@ -165,9 +48,22 @@ function togglePlay() {
 }
 
 function switchViewport( key ) {
+	if ( key === state.viewport ) {
+		return;
+	}
+
+	const vp = viewportByKey( key );
 	state.viewport = key;
 	updatePills();
-	focusViewportFrame( key, true );
+
+	applyDeviceSwitch( vp );
+
+	if ( ! state.playing ) {
+		setTimeout( () => freezeEditorAnimations(), 100 );
+	}
+
+	setTimeout( () => fitAllFrames( true ), 150 );
+	syncZoomLabel();
 }
 
 function activate() {
@@ -184,29 +80,31 @@ function activate() {
 	}
 
 	document.body.classList.add( 'wpi-canvas-mode-active' );
-	injectStrip( switchViewport, deactivate );
+	injectStrip( switchViewport, deactivate, togglePlay );
 	hideToolbar();
 	updateToggle();
 
+	const currentViewport = getViewportForDeviceType( getEditorDeviceType() );
+	state.viewport = currentViewport.key;
+	updatePills();
+
 	const onReady = () => {
-		freezeEditorAnimations();
-		expandEditorIframe();
-
-		rebuildCanvasFrames( switchViewport, { onTogglePlay: togglePlay } ).then( () => {
-			initPanzoom();
-			fitAllFrames( false );
-			syncZoomLabel();
-			showToolbar();
+		if ( ! state.active ) {
 			hideLoadingOverlay();
-			startSaveWatcher();
-			startContentPush();
+			return;
+		}
 
-			setTimeout( () => {
-				freezeEditorAnimations();
-				expandEditorIframe();
-				syncBackdropContentHeight();
-			}, 400 );
-		} );
+		freezeEditorAnimations();
+
+		startHeightSync();
+		initPanzoom();
+		initResponsive();
+		fitAllFrames( false );
+		syncZoomLabel();
+		reapplyAccessibility();
+		loadTemplateChrome();
+		showToolbar();
+		hideLoadingOverlay();
 	};
 	waitForEditorReady( onReady, onReady );
 }
@@ -214,22 +112,29 @@ function activate() {
 function deactivate() {
 	state.active = false;
 	state.playing = false;
+
+	const desktopVp = viewportByKey( 'Desktop' );
+	applyDeviceSwitch( desktopVp );
 	state.viewport = 'Desktop';
+
 	document.body.classList.remove( 'wpi-canvas-mode-active' );
+	hideLoadingOverlay();
 
 	unfreezeEditorAnimations();
-	restoreEditorIframe();
-	stopMirrorObserver();
-	stopSaveWatcher();
-	stopContentPush();
-	clearInterval( refs.editorReadyTimer );
+	cleanupEditorIframe();
+	cleanupAccessibility();
+	cleanupTemplateChrome();
+	clearTimeout( refs.editorReadyTimer );
 	refs.editorReadyTimer = null;
-	clearTimeout( refs.rebuildTimer );
+	if ( refs._editorReadyObserver ) {
+		refs._editorReadyObserver.disconnect();
+		refs._editorReadyObserver = null;
+	}
 
+	destroyResponsive();
 	destroyPanzoom();
 	removeStrip();
 	resetCanvas();
-	removeCanvasRow();
 
 	refs.contentEl?.classList.remove(
 		'wpi-canvas-space-pan',
@@ -237,6 +142,7 @@ function deactivate() {
 	);
 	state.spaceHeld = false;
 	refs.contentEl = null;
+	refs.editorVisualEl = null;
 	updateToggle();
 }
 

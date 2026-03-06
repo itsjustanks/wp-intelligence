@@ -39,7 +39,12 @@ class WPI_Dynamic_Data {
     }
     self::$booted = true;
 
-    add_action('init', [self::class, 'register_sources'], 5);
+    if (did_action('init')) {
+      self::register_sources();
+    } else {
+      add_action('init', [self::class, 'register_sources'], 5);
+    }
+
     add_action('rest_api_init', ['WPI_Dynamic_Data_REST_Controller', 'register_routes']);
     add_action('enqueue_block_editor_assets', [self::class, 'enqueue_editor_assets']);
     add_filter('render_block', [self::class, 'resolve_merge_tags_in_block'], 8, 2);

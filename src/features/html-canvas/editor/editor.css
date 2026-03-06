@@ -160,6 +160,22 @@
   white-space: nowrap;
 }
 
+.wpi-hc-ac__badge {
+  background: #3d5a80;
+  border-radius: 3px;
+  color: #c9d6e3;
+  flex: 0 0 auto;
+  font-family: "SF Mono", "Fira Code", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 5px;
+}
+
+.wpi-hc-ac__item--snippet .wpi-hc-ac__tag {
+  color: #ce9178;
+}
+
 /* ── Full-width alignment ───────────────────── */
 
 .wpi-hc-block.alignfull,

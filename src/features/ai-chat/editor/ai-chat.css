@@ -646,6 +646,37 @@
   position: relative;
 }
 
+/* Block editor Ask AI trigger */
+.wpi-chat-editor-trigger.components-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: auto;
+  padding: 0 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.wpi-chat-editor-trigger .dashicons {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.wpi-chat-editor-trigger__label {
+  line-height: 1;
+}
+
+@media (max-width: 959px) {
+  .wpi-chat-editor-trigger__label {
+    display: none;
+  }
+
+  .wpi-chat-editor-trigger.components-button {
+    padding: 0 8px;
+  }
+}
+
 /* ═══════════════════════════════════════════════
  *  Fullscreen Page Mode
  * ═══════════════════════════════════════════════ */

@@ -80,9 +80,21 @@ class WPI_WordPress_Source implements WPI_Data_Source_Interface {
       'meta'    => [],
     ];
 
-    $meta_keys = apply_filters('wpi_dynamic_data_post_meta_keys', [], $post->ID);
-    foreach ($meta_keys as $key) {
-      $data['meta'][$key] = get_post_meta($post->ID, $key, true);
+    $all_meta = get_post_meta($post->ID);
+    if (is_array($all_meta)) {
+      foreach ($all_meta as $key => $values) {
+        if (str_starts_with($key, '_')) {
+          continue;
+        }
+        $data['meta'][$key] = $values[0] ?? '';
+      }
+    }
+
+    $extra_keys = apply_filters('wpi_dynamic_data_post_meta_keys', [], $post->ID);
+    foreach ($extra_keys as $key) {
+      if (! isset($data['meta'][$key])) {
+        $data['meta'][$key] = get_post_meta($post->ID, $key, true);
+      }
     }
 
     return $data;
@@ -110,9 +122,16 @@ class WPI_WordPress_Source implements WPI_Data_Source_Interface {
       'meta'         => [],
     ];
 
-    $meta_keys = apply_filters('wpi_dynamic_data_user_meta_keys', [], $user->ID);
-    foreach ($meta_keys as $key) {
+    $common_keys = ['first_name', 'last_name', 'nickname', 'description'];
+    foreach ($common_keys as $key) {
       $data['meta'][$key] = get_user_meta($user->ID, $key, true);
+    }
+
+    $extra_keys = apply_filters('wpi_dynamic_data_user_meta_keys', [], $user->ID);
+    foreach ($extra_keys as $key) {
+      if (! isset($data['meta'][$key])) {
+        $data['meta'][$key] = get_user_meta($user->ID, $key, true);
+      }
     }
 
     return $data;
@@ -159,13 +178,11 @@ class WPI_WordPress_Source implements WPI_Data_Source_Interface {
       ['tag' => 'wp.post.url',         'label' => __('Post URL', 'wp-intelligence'),            'group' => __('Post', 'wp-intelligence')],
       ['tag' => 'wp.post.slug',        'label' => __('Post Slug', 'wp-intelligence'),           'group' => __('Post', 'wp-intelligence')],
       ['tag' => 'wp.post.status',      'label' => __('Post Status', 'wp-intelligence'),         'group' => __('Post', 'wp-intelligence')],
-      ['tag' => 'wp.post.meta.KEY',    'label' => __('Post Meta (specify key)', 'wp-intelligence'), 'group' => __('Post', 'wp-intelligence')],
       ['tag' => 'wp.user.display_name','label' => __('User Display Name', 'wp-intelligence'),   'group' => __('User', 'wp-intelligence')],
       ['tag' => 'wp.user.email',       'label' => __('User Email', 'wp-intelligence'),          'group' => __('User', 'wp-intelligence')],
       ['tag' => 'wp.user.login',       'label' => __('User Login', 'wp-intelligence'),          'group' => __('User', 'wp-intelligence')],
       ['tag' => 'wp.user.id',          'label' => __('User ID', 'wp-intelligence'),             'group' => __('User', 'wp-intelligence')],
       ['tag' => 'wp.user.role',        'label' => __('User Role', 'wp-intelligence'),           'group' => __('User', 'wp-intelligence')],
-      ['tag' => 'wp.user.meta.KEY',    'label' => __('User Meta (specify key)', 'wp-intelligence'), 'group' => __('User', 'wp-intelligence')],
       ['tag' => 'wp.site.name',        'label' => __('Site Name', 'wp-intelligence'),           'group' => __('Site', 'wp-intelligence')],
       ['tag' => 'wp.site.description', 'label' => __('Site Description', 'wp-intelligence'),    'group' => __('Site', 'wp-intelligence')],
       ['tag' => 'wp.site.url',         'label' => __('Site URL', 'wp-intelligence'),            'group' => __('Site', 'wp-intelligence')],
@@ -173,10 +190,130 @@ class WPI_WordPress_Source implements WPI_Data_Source_Interface {
       ['tag' => 'wp.site.language',    'label' => __('Site Language', 'wp-intelligence'),        'group' => __('Site', 'wp-intelligence')],
     ];
 
-    if (function_exists('get_field')) {
-      $tags[] = ['tag' => 'wp.acf.FIELD_NAME', 'label' => __('ACF Field (specify name)', 'wp-intelligence'), 'group' => __('ACF', 'wp-intelligence')];
+    $tags = array_merge($tags, $this->discover_post_meta_tags());
+    $tags = array_merge($tags, $this->discover_user_meta_tags());
+
+    if (function_exists('get_field') && function_exists('acf_get_field_groups')) {
+      $tags = array_merge($tags, $this->discover_acf_tags());
     }
 
     return $tags;
+  }
+
+  private function discover_post_meta_tags(): array {
+    $tags = [];
+
+    $registered = get_registered_meta_keys('post');
+    foreach ($registered as $key => $schema) {
+      if (str_starts_with($key, '_')) {
+        continue;
+      }
+      $label = $schema['description'] ?? ucwords(str_replace(['_', '-'], ' ', $key));
+      $tags[] = [
+        'tag'   => 'wp.post.meta.' . $key,
+        'label' => $label,
+        'group' => __('Post Meta', 'wp-intelligence'),
+      ];
+    }
+
+    if (empty($tags)) {
+      $tags[] = [
+        'tag'   => 'wp.post.meta.KEY',
+        'label' => __('Post Meta (replace KEY)', 'wp-intelligence'),
+        'group' => __('Post Meta', 'wp-intelligence'),
+      ];
+    }
+
+    return $tags;
+  }
+
+  private function discover_user_meta_tags(): array {
+    $tags = [];
+
+    $registered = get_registered_meta_keys('user');
+    foreach ($registered as $key => $schema) {
+      if (str_starts_with($key, '_')) {
+        continue;
+      }
+      $label = $schema['description'] ?? ucwords(str_replace(['_', '-'], ' ', $key));
+      $tags[] = [
+        'tag'   => 'wp.user.meta.' . $key,
+        'label' => $label,
+        'group' => __('User Meta', 'wp-intelligence'),
+      ];
+    }
+
+    if (empty($tags)) {
+      $tags[] = [
+        'tag'   => 'wp.user.meta.KEY',
+        'label' => __('User Meta (replace KEY)', 'wp-intelligence'),
+        'group' => __('User Meta', 'wp-intelligence'),
+      ];
+    }
+
+    return $tags;
+  }
+
+  private function discover_acf_tags(): array {
+    $tags   = [];
+    $groups = acf_get_field_groups();
+
+    foreach ($groups as $group) {
+      $fields     = acf_get_fields($group);
+      $group_label = $group['title'] ?? __('ACF', 'wp-intelligence');
+
+      if (! is_array($fields)) {
+        continue;
+      }
+
+      foreach ($fields as $field) {
+        $this->collect_acf_field($field, '', $group_label, $tags);
+      }
+    }
+
+    if (empty($tags)) {
+      $tags[] = [
+        'tag'   => 'wp.acf.FIELD_NAME',
+        'label' => __('ACF Field (replace name)', 'wp-intelligence'),
+        'group' => __('ACF', 'wp-intelligence'),
+      ];
+    }
+
+    return $tags;
+  }
+
+  /**
+   * Recursively collect ACF fields including sub-fields of groups/repeaters.
+   */
+  private function collect_acf_field(array $field, string $prefix, string $group_label, array &$tags, int $depth = 0): void {
+    if ($depth > 3) {
+      return;
+    }
+
+    $name = $field['name'] ?? '';
+    if ($name === '') {
+      return;
+    }
+
+    $path  = $prefix !== '' ? $prefix . '.' . $name : $name;
+    $label = $field['label'] ?? ucwords(str_replace('_', ' ', $name));
+    $type  = $field['type'] ?? '';
+
+    $supports_sub_fields = in_array($type, ['group', 'repeater', 'flexible_content'], true);
+
+    if (! $supports_sub_fields) {
+      $tags[] = [
+        'tag'   => 'wp.acf.' . $path,
+        'label' => $label,
+        'group' => 'ACF: ' . $group_label,
+      ];
+    }
+
+    $sub_fields = $field['sub_fields'] ?? [];
+    if (is_array($sub_fields) && $supports_sub_fields) {
+      foreach ($sub_fields as $sub) {
+        $this->collect_acf_field($sub, $path, $group_label, $tags, $depth + 1);
+      }
+    }
   }
 }

@@ -40,75 +40,69 @@ const actions = {
 	setDirty( isDirty ) {
 		return { type: 'SET_DIRTY', isDirty };
 	},
-	*saveSettings() {
-		const state = yield { type: 'GET_STATE' };
-		yield actions.setSaving( true );
-		try {
-			const result = yield {
-				type: 'API_FETCH',
-				request: {
+	saveSettings:
+		() =>
+		async ( { select, dispatch, registry } ) => {
+			const settings = select.getSettings();
+			const modules = select.getModules();
+			dispatch.setSaving( true );
+			try {
+				const result = await apiFetch( {
 					path: '/wp-intelligence/v1/settings',
 					method: 'POST',
-					data: {
-						settings: state.settings,
-						modules: state.modules,
-					},
-				},
-			};
-			if ( result.settings ) {
-				yield actions.setSettings( result.settings );
+					data: { settings, modules },
+				} );
+				if ( result.settings ) {
+					dispatch.setSettings( result.settings );
+				}
+				if ( result.modules ) {
+					dispatch.setModules( result.modules );
+				}
+				dispatch.setDirty( false );
+				registry
+					.dispatch( 'core/notices' )
+					.createNotice( 'success', 'Settings saved.', {
+						type: 'snackbar',
+						isDismissible: true,
+					} );
+			} catch ( error ) {
+				registry
+					.dispatch( 'core/notices' )
+					.createNotice(
+						'error',
+						error.message || 'Failed to save settings.',
+						{ type: 'snackbar', isDismissible: true }
+					);
 			}
-			if ( result.modules ) {
-				yield actions.setModules( result.modules );
+			dispatch.setSaving( false );
+		},
+	fetchSettings:
+		() =>
+		async ( { dispatch, registry } ) => {
+			try {
+				const result = await apiFetch( {
+					path: '/wp-intelligence/v1/settings',
+				} );
+				if ( result.settings ) {
+					dispatch.setSettings( result.settings );
+				}
+				if ( result.modules ) {
+					dispatch.setModules( result.modules );
+				}
+				if ( result.module_registry ) {
+					dispatch.setModuleRegistry( result.module_registry );
+				}
+				dispatch.setLoaded( true );
+			} catch ( error ) {
+				registry
+					.dispatch( 'core/notices' )
+					.createNotice(
+						'error',
+						'Failed to load settings.',
+						{ type: 'snackbar', isDismissible: true }
+					);
 			}
-			yield actions.setDirty( false );
-			yield {
-				type: 'DISPATCH_NOTICE',
-				notice: {
-					status: 'success',
-					content: 'Settings saved.',
-					isDismissible: true,
-				},
-			};
-		} catch ( error ) {
-			yield {
-				type: 'DISPATCH_NOTICE',
-				notice: {
-					status: 'error',
-					content: error.message || 'Failed to save settings.',
-					isDismissible: true,
-				},
-			};
-		}
-		yield actions.setSaving( false );
-	},
-	*fetchSettings() {
-		try {
-			const result = yield {
-				type: 'API_FETCH',
-				request: { path: '/wp-intelligence/v1/settings' },
-			};
-			if ( result.settings ) {
-				yield actions.setSettings( result.settings );
-			}
-			if ( result.modules ) {
-				yield actions.setModules( result.modules );
-			}
-			if ( result.module_registry ) {
-				yield actions.setModuleRegistry( result.module_registry );
-			}
-			yield actions.setLoaded( true );
-		} catch ( error ) {
-			yield {
-				type: 'DISPATCH_NOTICE',
-				notice: {
-					status: 'error',
-					content: 'Failed to load settings.',
-					isDismissible: true,
-				},
-			};
-		}
-	},
+		},
 };
 
 function reducer( state = DEFAULT_STATE, action ) {
@@ -188,31 +182,10 @@ const selectors = {
 	},
 };
 
-const controls = {
-	API_FETCH( action ) {
-		return apiFetch( action.request );
-	},
-	GET_STATE() {
-		return store.__unstableOriginalGetState();
-	},
-	DISPATCH_NOTICE( action ) {
-		const { dispatch } = require( '@wordpress/data' );
-		dispatch( 'core/notices' ).createNotice(
-			action.notice.status,
-			action.notice.content,
-			{
-				type: 'snackbar',
-				isDismissible: action.notice.isDismissible,
-			}
-		);
-	},
-};
-
 const store = createReduxStore( STORE_NAME, {
 	reducer,
 	actions,
 	selectors,
-	controls,
 } );
 
 register( store );

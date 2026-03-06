@@ -355,6 +355,15 @@ class WPI_Merge_Tag_Engine {
       }
     }
 
+    $tags[] = ['tag' => '#if wp.user.role == "administrator"', 'label' => __('If user is admin', 'wp-intelligence'),            'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if wp.user.role == \"administrator\"}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if wp.user.id',                     'label' => __('If user is logged in', 'wp-intelligence'),        'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if wp.user.id}}\n  \n{{#else}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if wp.post.meta.KEY',               'label' => __('If post meta has value', 'wp-intelligence'),       'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if wp.post.meta.KEY}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if wp.acf.FIELD',                   'label' => __('If ACF field has value', 'wp-intelligence'),       'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if wp.acf.FIELD}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if url.PARAM',                      'label' => __('If URL param exists', 'wp-intelligence'),          'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if url.PARAM}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if url.PARAM == "VALUE"',           'label' => __('If URL param equals value', 'wp-intelligence'),    'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if url.PARAM == \"VALUE\"}}\n  \n{{#else}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if cookie.NAME',                    'label' => __('If cookie exists', 'wp-intelligence'),             'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if cookie.NAME}}\n  \n{{/if}}"];
+    $tags[] = ['tag' => '#if storage.KEY',                    'label' => __('If storage key exists', 'wp-intelligence'),        'group' => __('Conditionals', 'wp-intelligence'), 'source' => '_conditions', 'snippet' => "{{#if storage.KEY}}\n  \n{{/if}}"];
+
     return apply_filters('wpi_dynamic_data_available_tags', $tags);
   }
 }

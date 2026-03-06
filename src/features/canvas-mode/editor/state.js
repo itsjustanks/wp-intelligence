@@ -28,14 +28,15 @@ export const VIEWPORTS = [
 	},
 ];
 
-export const FRAME_GAP = 48;
-export const ROW_PADDING_X = 56;
+export const CANVAS_PADDING = 56;
 
 export const state = {
 	active: false,
 	viewport: 'Desktop',
 	spaceHeld: false,
 	playing: false,
+	customWidth: null,
+	a11yMode: 'normal',
 };
 
 export const refs = {
@@ -43,29 +44,13 @@ export const refs = {
 	playBtnEl: null,
 	stripEl: null,
 	zoomLabelEl: null,
-	sizeBadgeEl: null,
 	contentEl: null,
 	editorVisualEl: null,
-	originalParentEl: null,
-	originalNextSiblingEl: null,
-	canvasRowEl: null,
-	mirrorFrames: [],
-	mirrorObserver: null,
-	mirrorSyncTimer: null,
-	rebuildTimer: null,
+	widthDisplayEl: null,
+	a11yBtnEl: null,
 	editorReadyTimer: null,
-	panzoomInstance: null,
-	backdropEl: null,
-	topSpacerEl: null,
-	bottomSpacerEl: null,
-	contentPushObserver: null,
-	contentPushTimer: null,
-	autosaveTimer: null,
+	_editorReadyObserver: null,
 };
-
-export function getContentSelector() {
-	return window.wpiCanvasModeConfig?.contentSelector || '.entry-content';
-}
 
 export function viewportByKey( key ) {
 	for ( let i = 0; i < VIEWPORTS.length; i++ ) {
@@ -87,14 +72,6 @@ export function getEditorVisual() {
 	return (
 		document.querySelector( '.editor-visual-editor' ) ||
 		document.querySelector( '.edit-post-visual-editor' )
-	);
-}
-
-export function getHeaderMount() {
-	return (
-		document.getElementById( 'nectar-responsive-device-toolbar__wrapper' ) ||
-		document.querySelector( '.editor-header__toolbar' ) ||
-		document.querySelector( '.edit-post-header__toolbar' )
 	);
 }
 
@@ -121,23 +98,59 @@ export function getEditorStylesWrapper( doc ) {
 	);
 }
 
-export function applyDeviceSwitch( vp ) {
-	const nectarWrapper = document.getElementById( 'nectar-responsive-device-toolbar__wrapper' );
-	if ( nectarWrapper ) {
-		const links = nectarWrapper.querySelectorAll( 'a' );
-		if ( links[ vp.nectarIdx ] ) {
-			links[ vp.nectarIdx ].click();
-			return;
+export function getEditorDeviceType() {
+	try {
+		const editorSelect = window.wp?.data?.select?.( 'core/editor' );
+		if ( editorSelect?.__experimentalGetPreviewDeviceType ) {
+			return editorSelect.__experimentalGetPreviewDeviceType();
+		}
+		if ( editorSelect?.getDeviceType ) {
+			return editorSelect.getDeviceType();
+		}
+	} catch ( e ) {} // eslint-disable-line no-empty
+
+	return 'Desktop';
+}
+
+export function getViewportForDeviceType( deviceType ) {
+	for ( let i = 0; i < VIEWPORTS.length; i++ ) {
+		if ( VIEWPORTS[ i ].wpDevice === deviceType ) {
+			return VIEWPORTS[ i ];
 		}
 	}
+
+	return VIEWPORTS[ 0 ];
+}
+
+export function applyDeviceSwitch( vp ) {
+	let switched = false;
+
 	try {
 		const editorDispatch = window.wp?.data?.dispatch?.( 'core/editor' );
 		if ( editorDispatch?.__experimentalSetPreviewDeviceType ) {
 			editorDispatch.__experimentalSetPreviewDeviceType( vp.wpDevice );
+			switched = true;
 		} else if ( editorDispatch?.setDeviceType ) {
 			editorDispatch.setDeviceType( vp.wpDevice );
+			switched = true;
 		}
 	} catch ( e ) {} // eslint-disable-line no-empty
+
+	try {
+		const nectarWrapper = document.getElementById( 'nectar-responsive-device-toolbar__wrapper' );
+		if ( nectarWrapper ) {
+			const links = nectarWrapper.querySelectorAll( 'a' );
+			const current = nectarWrapper.querySelector(
+				'.active, .is-active, [aria-pressed="true"]'
+			);
+			if ( links[ vp.nectarIdx ] && links[ vp.nectarIdx ] !== current ) {
+				links[ vp.nectarIdx ].click();
+				switched = true;
+			}
+		}
+	} catch ( e ) {} // eslint-disable-line no-empty
+
+	return switched;
 }
 
 export function isTypingTarget( target ) {
