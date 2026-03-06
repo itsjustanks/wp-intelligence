@@ -1,7 +1,7 @@
 import {
 	VIEWPORTS,
 	state,
-	getEditorVisual, applyDeviceSwitch, viewportByKey,
+	getEditorVisual, viewportByKey,
 } from './state';
 import { refitCanvas, syncZoomLabel } from './canvas';
 import { syncWidthDisplay, updatePills } from './ui';
@@ -146,7 +146,6 @@ function onPointerUp( e ) {
 	);
 	if ( matchedVp ) {
 		state.viewport = matchedVp.key;
-		applyDeviceSwitch( matchedVp );
 		updatePills();
 	}
 
@@ -205,7 +204,6 @@ export function switchToViewport( key ) {
 
 	state.viewport = key;
 	applyWidth( vp.previewWidth );
-	applyDeviceSwitch( vp );
 	updatePills();
 	setTimeout( () => refitCanvas( true ), 50 );
 }

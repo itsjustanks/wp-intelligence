@@ -204,8 +204,10 @@ body.wpi-canvas-mode-active .edit-post-layout__content.wpi-canvas-is-panning {
 
 body.wpi-canvas-mode-active .editor-visual-editor,
 body.wpi-canvas-mode-active .edit-post-visual-editor {
-  background: #101010 !important;
-  margin: 0 auto !important;
+  flex: none !important;
+  height: auto !important;
+  margin: 24px auto 80px !important;
+  overflow: visible !important;
   transform-origin: top center;
 }
 
@@ -213,6 +215,10 @@ body.wpi-canvas-mode-active .editor-visual-editor.wpi-canvas-animating,
 body.wpi-canvas-mode-active .edit-post-visual-editor.wpi-canvas-animating {
   transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   will-change: transform;
+}
+
+body.wpi-canvas-mode-active .editor-styles-wrapper {
+  background: #fff;
 }
 
 /* ── Hide competing UI in canvas mode ──────── */

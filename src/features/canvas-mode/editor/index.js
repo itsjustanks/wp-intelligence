@@ -6,8 +6,6 @@ import { subscribe } from '@wordpress/data';
 import {
 	state, refs,
 	getContentArea, getEditorVisual,
-	viewportByKey, applyDeviceSwitch,
-	getEditorDeviceType, getViewportForDeviceType,
 } from './state';
 import {
 	initZoom,
@@ -106,8 +104,7 @@ function activate() {
 	hideToolbar();
 	updateToggle();
 
-	const currentViewport = getViewportForDeviceType( getEditorDeviceType() );
-	state.viewport = currentViewport.key;
+	state.viewport = 'Desktop';
 	updatePills();
 
 	const onReady = () => {
@@ -136,8 +133,6 @@ function deactivate() {
 	state.active = false;
 	state.playing = false;
 
-	const desktopVp = viewportByKey( 'Desktop' );
-	applyDeviceSwitch( desktopVp );
 	state.viewport = 'Desktop';
 
 	document.body.classList.remove( 'wpi-canvas-mode-active' );
