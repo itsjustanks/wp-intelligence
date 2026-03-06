@@ -10,8 +10,8 @@ import {
 	getEditorDeviceType, getViewportForDeviceType,
 } from './state';
 import {
-	initPanzoom,
-	destroyPanzoom,
+	initZoom,
+	destroyZoom,
 	fitAllFrames,
 	resetCanvas,
 	syncZoomLabel,
@@ -31,11 +31,45 @@ import { bindShortcuts } from './shortcuts';
 import { shouldAutoActivate } from './auto-activate';
 import {
 	freezeEditorAnimations, unfreezeEditorAnimations,
-	cleanupEditorIframe, startHeightSync,
+	cleanupEditorIframe,
 } from './editor-iframe';
-import { initResponsive, destroyResponsive, clearCustomWidth } from './responsive';
+import { initResponsive, destroyResponsive, clearCustomWidth, switchToViewport } from './responsive';
 import { cleanupAccessibility, reapplyAccessibility } from './accessibility';
 import { loadTemplateChrome, cleanupTemplateChrome } from './template-chrome';
+import { injectMetaboxTab, removeMetaboxTab } from './metabox-tab';
+
+let _sidebarUnsubscribe = null;
+let _lastSidebarBlockId = null;
+
+function startSidebarSync() {
+	stopSidebarSync();
+	const data = window.wp?.data;
+	if ( ! data ) {
+		return;
+	}
+	_sidebarUnsubscribe = data.subscribe( () => {
+		if ( ! state.active ) {
+			return;
+		}
+		const selectedId = data.select( 'core/block-editor' ).getSelectedBlockClientId();
+		if ( ! selectedId || selectedId === _lastSidebarBlockId ) {
+			return;
+		}
+		_lastSidebarBlockId = selectedId;
+		const editPost = data.dispatch( 'core/edit-post' );
+		if ( editPost?.openGeneralSidebar ) {
+			editPost.openGeneralSidebar( 'edit-post/block' );
+		}
+	} );
+}
+
+function stopSidebarSync() {
+	if ( _sidebarUnsubscribe ) {
+		_sidebarUnsubscribe();
+		_sidebarUnsubscribe = null;
+	}
+	_lastSidebarBlockId = null;
+}
 
 function togglePlay() {
 	state.playing = ! state.playing;
@@ -47,23 +81,11 @@ function togglePlay() {
 	updatePlayButton();
 }
 
-function switchViewport( key ) {
-	if ( key === state.viewport ) {
-		return;
-	}
-
-	const vp = viewportByKey( key );
-	state.viewport = key;
-	updatePills();
-
-	applyDeviceSwitch( vp );
-
+function onViewportSwitch( key ) {
+	switchToViewport( key );
 	if ( ! state.playing ) {
 		setTimeout( () => freezeEditorAnimations(), 100 );
 	}
-
-	setTimeout( () => fitAllFrames( true ), 150 );
-	syncZoomLabel();
 }
 
 function activate() {
@@ -80,7 +102,7 @@ function activate() {
 	}
 
 	document.body.classList.add( 'wpi-canvas-mode-active' );
-	injectStrip( switchViewport, deactivate, togglePlay );
+	injectStrip( onViewportSwitch, deactivate, togglePlay );
 	hideToolbar();
 	updateToggle();
 
@@ -96,13 +118,14 @@ function activate() {
 
 		freezeEditorAnimations();
 
-		startHeightSync();
-		initPanzoom();
+		initZoom();
 		initResponsive();
 		fitAllFrames( false );
 		syncZoomLabel();
 		reapplyAccessibility();
 		loadTemplateChrome();
+		startSidebarSync();
+		injectMetaboxTab();
 		showToolbar();
 		hideLoadingOverlay();
 	};
@@ -124,6 +147,8 @@ function deactivate() {
 	cleanupEditorIframe();
 	cleanupAccessibility();
 	cleanupTemplateChrome();
+	stopSidebarSync();
+	removeMetaboxTab();
 	clearTimeout( refs.editorReadyTimer );
 	refs.editorReadyTimer = null;
 	if ( refs._editorReadyObserver ) {
@@ -132,15 +157,10 @@ function deactivate() {
 	}
 
 	destroyResponsive();
-	destroyPanzoom();
+	destroyZoom();
 	removeStrip();
 	resetCanvas();
 
-	refs.contentEl?.classList.remove(
-		'wpi-canvas-space-pan',
-		'wpi-canvas-is-panning'
-	);
-	state.spaceHeld = false;
 	refs.contentEl = null;
 	refs.editorVisualEl = null;
 	updateToggle();

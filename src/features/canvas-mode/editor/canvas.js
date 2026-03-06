@@ -7,15 +7,14 @@ const MIN_SCALE = 0.15;
 const MAX_SCALE = 2;
 const DEFAULT_SCALE = 0.9;
 
-const cam = { x: 0, y: 0, s: MIN_SCALE };
-
+let scale = DEFAULT_SCALE;
 let rafId = 0;
+let smoothTimer = null;
 let panActive = false;
 let panStartX = 0;
 let panStartY = 0;
-let panCamX0 = 0;
-let panCamY0 = 0;
-let smoothTimer = null;
+let panScrollX0 = 0;
+let panScrollY0 = 0;
 
 function clamp( v, lo, hi ) {
 	return v < lo ? lo : v > hi ? hi : v;
@@ -26,8 +25,7 @@ function flush() {
 	if ( ! refs.editorVisualEl ) {
 		return;
 	}
-	refs.editorVisualEl.style.transform =
-		'matrix(' + cam.s + ',0,0,' + cam.s + ',' + cam.x + ',' + cam.y + ')';
+	refs.editorVisualEl.style.transform = 'scale(' + scale + ')';
 	syncZoomLabel();
 }
 
@@ -57,7 +55,7 @@ function endSmooth() {
 	}, 400 );
 }
 
-function applyCamera( smooth ) {
+function applyScale( smooth ) {
 	if ( smooth ) {
 		beginSmooth();
 	}
@@ -67,40 +65,70 @@ function applyCamera( smooth ) {
 	}
 }
 
+function computeFitScale() {
+	if ( ! refs.contentEl || ! refs.editorVisualEl ) {
+		return DEFAULT_SCALE;
+	}
+	const availW = Math.max( 360, refs.contentEl.clientWidth );
+	const editorW = ( state.customWidth || refs.editorVisualEl.offsetWidth || 1440 ) + CANVAS_PADDING * 2;
+	const maxFit = clamp( availW / editorW, MIN_SCALE, MAX_SCALE );
+	return clamp( Math.min( DEFAULT_SCALE, maxFit ), MIN_SCALE, MAX_SCALE );
+}
+
 /* ── Public lifecycle ──────────────────────── */
 
-export function initPanzoom() {
+export function initZoom() {
 	if ( ! refs.editorVisualEl || ! refs.contentEl ) {
 		return;
 	}
 
-	cam.s = MIN_SCALE;
-	cam.x = 0;
-	cam.y = 0;
+	scale = computeFitScale();
 	renderNow();
-	fitAllFrames( false );
 
-	refs.contentEl.addEventListener( 'pointerdown', onPointerDown );
-	refs.contentEl.addEventListener( 'pointermove', onPointerMove );
-	refs.contentEl.addEventListener( 'pointerup', onPointerUp );
-	refs.contentEl.addEventListener( 'pointercancel', onPointerUp );
 	refs.contentEl.addEventListener( 'wheel', onWheel, { passive: false } );
+	refs.contentEl.addEventListener( 'pointerdown', onPanDown );
+	refs.contentEl.addEventListener( 'pointermove', onPanMove );
+	refs.contentEl.addEventListener( 'pointerup', onPanUp );
+	refs.contentEl.addEventListener( 'pointercancel', onPanUp );
 }
 
-export function destroyPanzoom() {
+export function destroyZoom() {
 	cancelAnimationFrame( rafId );
 	rafId = 0;
 	clearTimeout( smoothTimer );
+	panActive = false;
 	if ( refs.contentEl ) {
-		refs.contentEl.removeEventListener( 'pointerdown', onPointerDown );
-		refs.contentEl.removeEventListener( 'pointermove', onPointerMove );
-		refs.contentEl.removeEventListener( 'pointerup', onPointerUp );
-		refs.contentEl.removeEventListener( 'pointercancel', onPointerUp );
 		refs.contentEl.removeEventListener( 'wheel', onWheel );
+		refs.contentEl.removeEventListener( 'pointerdown', onPanDown );
+		refs.contentEl.removeEventListener( 'pointermove', onPanMove );
+		refs.contentEl.removeEventListener( 'pointerup', onPanUp );
+		refs.contentEl.removeEventListener( 'pointercancel', onPanUp );
+		refs.contentEl.classList.remove( 'wpi-canvas-is-panning', 'wpi-canvas-space-pan' );
 	}
 }
 
-/* ── Pointer pan ───────────────────────────── */
+/* ── Wheel: Cmd/Ctrl zoom only ─────────────── */
+
+function onWheel( e ) {
+	if ( ! refs.contentEl || ! state.active ) {
+		return;
+	}
+
+	if ( ! ( e.ctrlKey || e.metaKey ) ) {
+		return;
+	}
+
+	e.preventDefault();
+
+	scale = clamp(
+		scale * Math.pow( 0.995, e.deltaY ),
+		MIN_SCALE,
+		MAX_SCALE
+	);
+	render();
+}
+
+/* ── Pointer pan (middle-click or Space+drag) ── */
 
 function shouldPan( e ) {
 	if ( e.button === 1 ) {
@@ -112,15 +140,15 @@ function shouldPan( e ) {
 	return false;
 }
 
-function onPointerDown( e ) {
+function onPanDown( e ) {
 	if ( ! shouldPan( e ) ) {
 		return;
 	}
 	panActive = true;
 	panStartX = e.clientX;
 	panStartY = e.clientY;
-	panCamX0 = cam.x;
-	panCamY0 = cam.y;
+	panScrollX0 = refs.contentEl.scrollLeft;
+	panScrollY0 = refs.contentEl.scrollTop;
 	refs.contentEl.classList.add( 'wpi-canvas-is-panning' );
 	try {
 		refs.contentEl.setPointerCapture( e.pointerId );
@@ -128,17 +156,16 @@ function onPointerDown( e ) {
 	e.preventDefault();
 }
 
-function onPointerMove( e ) {
+function onPanMove( e ) {
 	if ( ! panActive ) {
 		return;
 	}
-	cam.x = panCamX0 + ( e.clientX - panStartX );
-	cam.y = panCamY0 + ( e.clientY - panStartY );
-	render();
+	refs.contentEl.scrollLeft = panScrollX0 - ( e.clientX - panStartX );
+	refs.contentEl.scrollTop = panScrollY0 - ( e.clientY - panStartY );
 	e.preventDefault();
 }
 
-function onPointerUp( e ) {
+function onPanUp( e ) {
 	if ( ! panActive ) {
 		return;
 	}
@@ -149,91 +176,37 @@ function onPointerUp( e ) {
 	} catch ( _ex ) {} // eslint-disable-line no-empty
 }
 
-/* ── Wheel: trackpad pan + pinch/ctrl zoom ── */
-
-function onWheel( e ) {
-	if ( ! refs.contentEl ) {
-		return;
-	}
-	e.preventDefault();
-
-	if ( e.ctrlKey || e.metaKey ) {
-		const rect = refs.contentEl.getBoundingClientRect();
-		const cx = e.clientX - rect.left;
-		const cy = e.clientY - rect.top;
-
-		const oldS = cam.s;
-		const newS = clamp(
-			cam.s * Math.pow( 0.995, e.deltaY ),
-			MIN_SCALE,
-			MAX_SCALE
-		);
-
-		cam.x = cx - ( cx - cam.x ) * ( newS / oldS );
-		cam.y = cy - ( cy - cam.y ) * ( newS / oldS );
-		cam.s = newS;
-	} else {
-		cam.x -= e.deltaX;
-		cam.y -= e.deltaY;
-	}
-	render();
-}
-
 /* ── Zoom label ────────────────────────────── */
 
 export function syncZoomLabel() {
 	if ( refs.zoomLabelEl ) {
-		refs.zoomLabelEl.textContent = Math.round( cam.s * 100 ) + '%';
+		refs.zoomLabelEl.textContent = Math.round( scale * 100 ) + '%';
 	}
 }
 
 /* ── Fit editor in viewport ────────────────── */
 
 export function fitAllFrames( smooth = false ) {
-	if ( ! refs.contentEl || ! refs.editorVisualEl ) {
-		return;
-	}
-
-	const availW = Math.max( 360, refs.contentEl.clientWidth );
-	const editorW = ( refs.editorVisualEl.offsetWidth || 1440 ) + CANVAS_PADDING * 2;
-	const maxFit = clamp( availW / editorW, MIN_SCALE, MAX_SCALE );
-	const targetScale = clamp( Math.min( DEFAULT_SCALE, maxFit ), MIN_SCALE, MAX_SCALE );
-
-	const scaledW = editorW * targetScale;
-
-	cam.s = targetScale;
-	cam.x = Math.max( 0, ( availW - scaledW ) / 2 );
-	cam.y = 24;
-	applyCamera( smooth );
+	scale = computeFitScale();
+	applyScale( smooth );
 }
 
-/* ── Recenter horizontally (keeps scale + Y) ── */
+/* ── Refit: recalculate scale ──────────────── */
 
-export function recenterX( editorWidth ) {
-	if ( ! refs.contentEl ) {
-		return;
-	}
-	const availW = Math.max( 360, refs.contentEl.clientWidth );
-	const scaledW = ( editorWidth + CANVAS_PADDING * 2 ) * cam.s;
-	cam.x = Math.max( 0, ( availW - scaledW ) / 2 );
-	renderNow();
+export function refitCanvas( smooth = true ) {
+	scale = computeFitScale();
+	applyScale( smooth );
+}
+
+export function recenterX() {
+	// centering handled by CSS margin:auto
 }
 
 /* ── Zoom step (toolbar +/−) ───────────────── */
 
 export function zoomStep( delta ) {
-	if ( ! refs.contentEl ) {
-		return;
-	}
-	const cx = refs.contentEl.clientWidth / 2;
-	const cy = refs.contentEl.clientHeight / 2;
-	const oldS = cam.s;
-	const newS = clamp( cam.s + delta, MIN_SCALE, MAX_SCALE );
-
-	cam.x = cx - ( cx - cam.x ) * ( newS / oldS );
-	cam.y = cy - ( cy - cam.y ) * ( newS / oldS );
-	cam.s = newS;
-	applyCamera( true );
+	scale = clamp( scale + delta, MIN_SCALE, MAX_SCALE );
+	applyScale( true );
 }
 
 /* ── Reset ─────────────────────────────────── */
@@ -242,9 +215,7 @@ export function resetCanvas() {
 	cancelAnimationFrame( rafId );
 	rafId = 0;
 	clearTimeout( smoothTimer );
-	cam.x = 0;
-	cam.y = 0;
-	cam.s = MIN_SCALE;
+	scale = DEFAULT_SCALE;
 	if ( refs.editorVisualEl ) {
 		refs.editorVisualEl.style.transform = '';
 		refs.editorVisualEl.classList.remove( 'wpi-canvas-animating' );

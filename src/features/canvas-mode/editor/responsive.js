@@ -1,9 +1,9 @@
 import {
 	VIEWPORTS,
 	state,
-	getEditorVisual,
+	getEditorVisual, applyDeviceSwitch, viewportByKey,
 } from './state';
-import { fitAllFrames, syncZoomLabel, recenterX } from './canvas';
+import { refitCanvas, syncZoomLabel } from './canvas';
 import { syncWidthDisplay, updatePills } from './ui';
 
 const SNAP_THRESHOLD = 16;
@@ -39,16 +39,6 @@ function clampWidth( w ) {
 	return Math.max( 280, Math.min( 2560, Math.round( w ) ) );
 }
 
-function getCurrentScale() {
-	const ev = getEditorVisual();
-	if ( ! ev ) {
-		return 1;
-	}
-	const transform = ev.style.transform;
-	const match = transform?.match( /matrix\(([^,]+)/ );
-	return match ? parseFloat( match[ 1 ] ) : 1;
-}
-
 function applyWidth( width ) {
 	const ev = getEditorVisual();
 	if ( ! ev ) {
@@ -61,7 +51,6 @@ function applyWidth( width ) {
 	ev.style.maxWidth = width + 'px';
 
 	syncWidthDisplay( width );
-	recenterX( width );
 
 	const snap = findSnapBreakpoint( width );
 	showSnapIndicator( snap );
@@ -117,8 +106,7 @@ function onPointerMove( e ) {
 		return;
 	}
 
-	const scale = getCurrentScale();
-	const delta = ( e.clientX - _dragStartX ) / scale;
+	const delta = e.clientX - _dragStartX;
 
 	let newWidth;
 	if ( _dragSide === 'right' ) {
@@ -158,10 +146,11 @@ function onPointerUp( e ) {
 	);
 	if ( matchedVp ) {
 		state.viewport = matchedVp.key;
+		applyDeviceSwitch( matchedVp );
 		updatePills();
 	}
 
-	syncZoomLabel();
+	refitCanvas( true );
 }
 
 function createHandle( side ) {
@@ -208,12 +197,17 @@ export function destroyResponsive() {
 	_dragging = false;
 }
 
-export function switchToPresetWidth( vpKey ) {
-	const vp = VIEWPORTS.find( ( v ) => v.key === vpKey );
-	if ( ! vp ) {
+export function switchToViewport( key ) {
+	const vp = viewportByKey( key );
+	if ( ! vp || key === state.viewport ) {
 		return;
 	}
+
+	state.viewport = key;
 	applyWidth( vp.previewWidth );
+	applyDeviceSwitch( vp );
+	updatePills();
+	setTimeout( () => refitCanvas( true ), 50 );
 }
 
 export function applyWidthFromInput( px ) {

@@ -1,10 +1,11 @@
 import { VIEWPORTS, state, refs, viewportByKey } from './state';
-import { zoomStep, fitAllFrames, syncZoomLabel } from './canvas';
+import { zoomStep, fitAllFrames, refitCanvas, syncZoomLabel } from './canvas';
 import { PLAY_SVG, PAUSE_SVG } from './frames';
 import { applyWidthFromInput } from './responsive';
 import { A11Y_MODES, setAccessibilityMode, getAccessibilityMode } from './accessibility';
 
 let _contentResizeObserver = null;
+let _contentResizeTimer = null;
 let _overlayEl = null;
 let _onOverlayExit = null;
 
@@ -295,9 +296,13 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 	refs.contentEl.appendChild( refs.stripEl );
 
 	_contentResizeObserver = new ResizeObserver( () => {
-		if ( state.active ) {
-			fitAllFrames( true );
+		if ( ! state.active ) {
+			return;
 		}
+		clearTimeout( _contentResizeTimer );
+		_contentResizeTimer = setTimeout( () => {
+			refitCanvas( true );
+		}, 80 );
 	} );
 	_contentResizeObserver.observe( refs.contentEl );
 
@@ -305,6 +310,7 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 }
 
 export function removeStrip() {
+	clearTimeout( _contentResizeTimer );
 	if ( _contentResizeObserver ) {
 		_contentResizeObserver.disconnect();
 		_contentResizeObserver = null;

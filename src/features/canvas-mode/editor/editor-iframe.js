@@ -24,9 +24,6 @@ const CANVAS_LAYOUT_CSS =
 	'.editor-post-title,.editor-post-title__block,' +
 	'.edit-post-visual-editor__post-title-wrapper,' +
 	'.editor-visual-editor__post-title-wrapper{display:none!important}' +
-	'.block-editor-iframe__html{min-height:0!important;height:auto!important}' +
-	'.block-editor-iframe__body{min-height:0!important}' +
-	'.is-root-container{min-height:0!important}' +
 	'.wpi-template-chrome{pointer-events:none;position:relative;opacity:.85}' +
 	'.wpi-template-chrome *{pointer-events:none!important}' +
 	'.wpi-template-chrome a{cursor:default!important}' +
@@ -37,7 +34,6 @@ let _boundIframe = null;
 let _loadHandler = null;
 let _mediaObserver = null;
 let _playInterceptor = null;
-let _heightObserver = null;
 
 function applyFreezeStyle( doc ) {
 	if ( ! doc?.head ) {
@@ -205,62 +201,6 @@ function bindIframeLoad( iframe ) {
 	iframe.addEventListener( 'load', _loadHandler );
 }
 
-function syncIframeHeight() {
-	const iframe = getEditorIframe();
-	if ( ! iframe || ! state.active ) {
-		return;
-	}
-	const doc = iframe.contentDocument;
-	if ( ! doc?.documentElement ) {
-		return;
-	}
-	const h = Math.max(
-		doc.documentElement.scrollHeight,
-		doc.body?.scrollHeight || 0
-	);
-	if ( h > 0 ) {
-		iframe.style.height = h + 'px';
-		iframe.style.width = '100%';
-		const scaleContainer = iframe.closest( '.block-editor-iframe__scale-container' );
-		if ( scaleContainer ) {
-			scaleContainer.style.height = h + 'px';
-			scaleContainer.style.transform = 'none';
-			scaleContainer.style.overflow = 'visible';
-		}
-	}
-}
-
-export function startHeightSync() {
-	stopHeightSync();
-	const doc = getEditorDoc();
-	if ( ! doc?.body ) {
-		return;
-	}
-	syncIframeHeight();
-	_heightObserver = new MutationObserver( syncIframeHeight );
-	_heightObserver.observe( doc.body, {
-		childList: true,
-		subtree: true,
-		attributes: true,
-		attributeFilter: [ 'style', 'class' ],
-	} );
-	if ( typeof ResizeObserver !== 'undefined' ) {
-		const ro = new ResizeObserver( syncIframeHeight );
-		ro.observe( doc.documentElement );
-		_heightObserver._resizeObserver = ro;
-	}
-}
-
-function stopHeightSync() {
-	if ( _heightObserver ) {
-		_heightObserver.disconnect();
-		if ( _heightObserver._resizeObserver ) {
-			_heightObserver._resizeObserver.disconnect();
-		}
-		_heightObserver = null;
-	}
-}
-
 export function freezeEditorAnimations() {
 	const iframe = getEditorIframe();
 	bindIframeLoad( iframe );
@@ -283,20 +223,8 @@ export function unfreezeEditorAnimations() {
 
 export function cleanupEditorIframe() {
 	stopMediaObserver();
-	stopHeightSync();
 	if ( _boundIframe && _loadHandler ) {
 		_boundIframe.removeEventListener( 'load', _loadHandler );
-	}
-	const iframe = getEditorIframe();
-	if ( iframe ) {
-		iframe.style.height = '';
-		iframe.style.width = '';
-		const scaleContainer = iframe.closest( '.block-editor-iframe__scale-container' );
-		if ( scaleContainer ) {
-			scaleContainer.style.height = '';
-			scaleContainer.style.transform = '';
-			scaleContainer.style.overflow = '';
-		}
 	}
 	_boundIframe = null;
 	_loadHandler = null;
