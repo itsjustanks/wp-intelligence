@@ -6,7 +6,6 @@ import { subscribe } from '@wordpress/data';
 import {
 	state, refs,
 	getContentArea, getEditorVisual,
-	getEditorDeviceType, getViewportForDeviceType,
 } from './state';
 import {
 	initZoom,
@@ -34,17 +33,15 @@ import {
 } from './editor-iframe';
 import { initResponsive, destroyResponsive, clearCustomWidth, switchToViewport } from './responsive';
 import { cleanupAccessibility, reapplyAccessibility } from './accessibility';
-import { loadTemplateChrome, cleanupTemplateChrome } from './template-chrome';
 import { injectMetaboxTab, removeMetaboxTab } from './metabox-tab';
 import { resetCanvasDeviceType } from './device-override';
 import { injectFrameHeader, removeFrameHeader } from './frame-header';
 import { initDimensions, destroyDimensions } from './dimensions';
 import { initSpacingOverlay, destroySpacingOverlay } from './spacing-overlay';
+import { initPreviewFrames, removePreviewFrames, syncPreviewFrames } from './preview-frames';
 
 let _sidebarUnsubscribe = null;
 let _lastSidebarBlockId = null;
-let _viewportUnsubscribe = null;
-let _lastViewport = null;
 
 function startSidebarSync() {
 	stopSidebarSync();
@@ -76,36 +73,6 @@ function stopSidebarSync() {
 	_lastSidebarBlockId = null;
 }
 
-function startViewportSync() {
-	stopViewportSync();
-	const data = window.wp?.data;
-	if ( ! data ) {
-		return;
-	}
-	_viewportUnsubscribe = data.subscribe( () => {
-		if ( ! state.active ) {
-			return;
-		}
-		const current = getEditorDeviceType();
-		const viewport = getViewportForDeviceType( current );
-		if ( viewport.key === _lastViewport ) {
-			return;
-		}
-		_lastViewport = viewport.key;
-		state.viewport = viewport.key;
-		updatePills();
-		setTimeout( () => refitCanvas( true ), viewport.key === 'Desktop' ? 50 : 250 );
-	} );
-}
-
-function stopViewportSync() {
-	if ( _viewportUnsubscribe ) {
-		_viewportUnsubscribe();
-		_viewportUnsubscribe = null;
-	}
-	_lastViewport = null;
-}
-
 function togglePlay() {
 	state.playing = ! state.playing;
 	if ( state.playing ) {
@@ -121,6 +88,9 @@ function onViewportSwitch( key ) {
 	if ( ! state.playing ) {
 		setTimeout( () => freezeEditorAnimations(), 100 );
 	}
+	setTimeout( () => {
+		syncPreviewFrames( onViewportSwitch );
+	}, 120 );
 }
 
 function activate() {
@@ -154,15 +124,16 @@ function activate() {
 
 		initZoom();
 		initResponsive();
+		state.viewport = '';
+		switchToViewport( 'Desktop' );
+		initPreviewFrames( onViewportSwitch );
 		injectFrameHeader();
 		fitAllFrames( false );
 		syncZoomLabel();
 		reapplyAccessibility();
-		loadTemplateChrome();
 		initDimensions();
 		initSpacingOverlay();
 		startSidebarSync();
-		startViewportSync();
 		injectMetaboxTab();
 		showToolbar();
 		hideLoadingOverlay();
@@ -183,9 +154,7 @@ function deactivate() {
 	unfreezeEditorAnimations();
 	cleanupEditorIframe();
 	cleanupAccessibility();
-	cleanupTemplateChrome();
 	stopSidebarSync();
-	stopViewportSync();
 	removeMetaboxTab();
 	clearTimeout( refs.editorReadyTimer );
 	refs.editorReadyTimer = null;
@@ -197,6 +166,7 @@ function deactivate() {
 	destroyDimensions();
 	destroySpacingOverlay();
 	removeFrameHeader();
+	removePreviewFrames();
 	destroyResponsive();
 	destroyZoom();
 	removeStrip();

@@ -37,6 +37,7 @@ export const refs = {
 	zoomLabelEl: null,
 	contentEl: null,
 	editorVisualEl: null,
+	workspaceEl: null,
 	widthDisplayEl: null,
 	a11yBtnEl: null,
 	inspectBtnEl: null,

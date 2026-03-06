@@ -75,7 +75,9 @@ function computeFitScale() {
 		return 1;
 	}
 	const availW = Math.max( 360, refs.contentEl.clientWidth );
-	const editorW = ( state.customWidth || refs.editorVisualEl.offsetWidth || 1440 ) + CANVAS_PADDING * 2;
+	const targetW = refs.workspaceEl?.offsetWidth ||
+		( state.customWidth || refs.editorVisualEl.offsetWidth || 1440 );
+	const editorW = targetW + CANVAS_PADDING * 2;
 	const maxFit = clamp( availW / editorW, MIN_SCALE, MAX_SCALE );
 	return clamp( Math.min( DEFAULT_SCALE, maxFit ), MIN_SCALE, MAX_SCALE );
 }

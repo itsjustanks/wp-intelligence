@@ -1,8 +1,9 @@
 /**
- * Native preview device switching for canvas mode.
+ * Canvas viewport state.
  *
- * Desktop stays on the fast custom canvas. Tablet and Mobile intentionally
- * use WordPress's native preview mode so viewport-specific block controls work.
+ * This is intentionally visual-only. We mirror the active viewport on the body
+ * so CSS or integrations can respond, but we do not call WordPress preview
+ * device APIs here because those trigger iframe-based editor mode.
  */
 
 const BODY_DEVICE_CLASSES = [
@@ -16,30 +17,10 @@ function setBodyDeviceClass( key ) {
 	document.body.classList.add( 'wpi-canvas-device-' + key.toLowerCase() );
 }
 
-function dispatchPreviewDevice( deviceType ) {
-	const data = window.wp?.data;
-	if ( ! data ) {
-		return;
-	}
-	const editPost = data.dispatch( 'core/edit-post' );
-	if ( editPost?.__experimentalSetPreviewDeviceType ) {
-		editPost.__experimentalSetPreviewDeviceType( deviceType );
-		return;
-	}
-	const editorDispatch = data.dispatch( 'core/editor' );
-	if ( editorDispatch?.setDeviceType ) {
-		editorDispatch.setDeviceType( deviceType );
-	} else if ( editorDispatch?.__experimentalSetPreviewDeviceType ) {
-		editorDispatch.__experimentalSetPreviewDeviceType( deviceType );
-	}
-}
-
 export function setCanvasDeviceType( key ) {
 	setBodyDeviceClass( key );
-	dispatchPreviewDevice( key );
 }
 
 export function resetCanvasDeviceType() {
 	setBodyDeviceClass( 'Desktop' );
-	dispatchPreviewDevice( 'Desktop' );
 }

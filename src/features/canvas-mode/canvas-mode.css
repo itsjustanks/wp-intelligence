@@ -182,6 +182,7 @@
 body.wpi-canvas-mode-active .interface-interface-skeleton__content,
 body.wpi-canvas-mode-active .edit-post-layout__content {
   background: #101010 !important;
+  overflow: auto !important;
   position: relative;
 }
 
@@ -206,7 +207,7 @@ body.wpi-canvas-mode-active .editor-visual-editor,
 body.wpi-canvas-mode-active .edit-post-visual-editor {
   flex: none !important;
   height: auto !important;
-  margin: 24px auto 80px !important;
+  margin: 0 !important;
   overflow: visible !important;
   transform-origin: top center;
 }
@@ -246,6 +247,93 @@ body.wpi-canvas-mode-active .edit-post-visual-editor.wpi-canvas-animating {
 
 body.wpi-canvas-mode-active .editor-styles-wrapper {
   background: #fff;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-workspace {
+  align-items: flex-start;
+  display: flex;
+  gap: 32px;
+  min-height: calc(100% - 120px);
+  padding: 24px 24px 96px;
+  width: max-content;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-active-frame {
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid var(--wp-admin-theme-color, #3858e9);
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(56, 88, 233, 0.25);
+  flex: 0 0 auto;
+  padding: 10px;
+  position: relative;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-rail {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 32px;
+  padding-top: 0;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  display: block;
+  flex: 0 0 auto;
+  padding: 10px;
+  text-align: left;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame__header {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  white-space: nowrap;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame__shell {
+  background: #fff;
+  border-radius: 8px;
+  min-height: 320px;
+  overflow: hidden;
+  position: relative;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame__shell.is-loading {
+  background: #161616;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame__loader {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  font-size: 12px;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  z-index: 1;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame__shell:not(.is-loading) .wpi-canvas-preview-frame__loader {
+  display: none;
+}
+
+body.wpi-canvas-mode-active .wpi-canvas-preview-frame__iframe {
+  border: 0;
+  display: block;
+  left: 0;
+  position: absolute;
+  top: 0;
 }
 
 /* ── Hide competing UI in canvas mode ──────── */
