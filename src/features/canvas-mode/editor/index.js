@@ -10,35 +10,65 @@ import {
 import {
 	initZoom,
 	destroyZoom,
-	fitAllFrames,
+	fitCanvas,
 	resetCanvas,
-	syncZoomLabel,
 } from './canvas';
-import {
-	waitForEditorReady,
-	updatePlayButton,
-} from './frames';
 import {
 	injectToggle, updateToggle,
 	injectStrip, removeStrip,
-	updatePills,
 	showLoadingOverlay, hideLoadingOverlay,
 	showToolbar, hideToolbar,
 } from './ui';
 import { bindShortcuts } from './shortcuts';
 import { shouldAutoActivate } from './auto-activate';
 import {
-	freezeEditorAnimations, unfreezeEditorAnimations,
-	cleanupEditorIframe,
+	freezeEditorAnimations, cleanupEditorIframe,
 } from './editor-iframe';
-import { initResponsive, destroyResponsive, clearCustomWidth, switchToViewport } from './responsive';
+import { initResponsive, destroyResponsive } from './responsive';
 import { cleanupAccessibility, reapplyAccessibility } from './accessibility';
 import { injectMetaboxTab, removeMetaboxTab } from './metabox-tab';
 import { resetCanvasDeviceType } from './device-override';
-import { injectFrameHeader, removeFrameHeader } from './frame-header';
 import { initDimensions, destroyDimensions } from './dimensions';
-import { initSpacingOverlay, destroySpacingOverlay } from './spacing-overlay';
-import { initPreviewFrames, removePreviewFrames, syncPreviewFrames } from './preview-frames';
+import { initEditorFrame, removeEditorFrame } from './editor-frame';
+
+function waitForEditorReady( onReady, onTimeout ) {
+	clearTimeout( refs.editorReadyTimer );
+	if ( refs._editorReadyObserver ) {
+		refs._editorReadyObserver.disconnect();
+		refs._editorReadyObserver = null;
+	}
+
+	const wrapper =
+		( document.querySelector( 'iframe[name="editor-canvas"]' )
+			?.contentDocument?.querySelector( '.editor-styles-wrapper' ) ) || null;
+	if ( wrapper ) {
+		onReady();
+		return;
+	}
+
+	const container = getEditorVisual() || document.body;
+	const observer = new MutationObserver( () => {
+		const w =
+			( document.querySelector( 'iframe[name="editor-canvas"]' )
+				?.contentDocument?.querySelector( '.editor-styles-wrapper' ) ) || null;
+		if ( w ) {
+			observer.disconnect();
+			refs._editorReadyObserver = null;
+			clearTimeout( refs.editorReadyTimer );
+			refs.editorReadyTimer = null;
+			onReady();
+		}
+	} );
+	refs._editorReadyObserver = observer;
+	observer.observe( container, { childList: true, subtree: true } );
+
+	refs.editorReadyTimer = setTimeout( () => {
+		observer.disconnect();
+		refs._editorReadyObserver = null;
+		refs.editorReadyTimer = null;
+		onTimeout?.();
+	}, 4000 );
+}
 
 let _sidebarUnsubscribe = null;
 let _lastSidebarBlockId = null;
@@ -73,26 +103,6 @@ function stopSidebarSync() {
 	_lastSidebarBlockId = null;
 }
 
-function togglePlay() {
-	state.playing = ! state.playing;
-	if ( state.playing ) {
-		unfreezeEditorAnimations();
-	} else {
-		freezeEditorAnimations();
-	}
-	updatePlayButton();
-}
-
-function onViewportSwitch( key ) {
-	switchToViewport( key );
-	if ( ! state.playing ) {
-		setTimeout( () => freezeEditorAnimations(), 100 );
-	}
-	setTimeout( () => {
-		syncPreviewFrames( onViewportSwitch );
-	}, 120 );
-}
-
 function activate() {
 	state.active = true;
 
@@ -107,12 +117,9 @@ function activate() {
 	}
 
 	document.body.classList.add( 'wpi-canvas-mode-active' );
-	injectStrip( onViewportSwitch, deactivate, togglePlay );
+	injectStrip( deactivate );
 	hideToolbar();
 	updateToggle();
-
-	state.viewport = 'Desktop';
-	updatePills();
 
 	const onReady = () => {
 		if ( ! state.active ) {
@@ -122,17 +129,13 @@ function activate() {
 
 		freezeEditorAnimations();
 
+		state.viewport = 'Desktop';
+		initEditorFrame();
 		initZoom();
 		initResponsive();
-		state.viewport = '';
-		switchToViewport( 'Desktop' );
-		initPreviewFrames( onViewportSwitch );
-		injectFrameHeader();
-		fitAllFrames( false );
-		syncZoomLabel();
+		fitCanvas( false );
 		reapplyAccessibility();
 		initDimensions();
-		initSpacingOverlay();
 		startSidebarSync();
 		injectMetaboxTab();
 		showToolbar();
@@ -143,7 +146,6 @@ function activate() {
 
 function deactivate() {
 	state.active = false;
-	state.playing = false;
 
 	state.viewport = 'Desktop';
 	resetCanvasDeviceType();
@@ -151,7 +153,6 @@ function deactivate() {
 	document.body.classList.remove( 'wpi-canvas-mode-active' );
 	hideLoadingOverlay();
 
-	unfreezeEditorAnimations();
 	cleanupEditorIframe();
 	cleanupAccessibility();
 	stopSidebarSync();
@@ -164,9 +165,7 @@ function deactivate() {
 	}
 
 	destroyDimensions();
-	destroySpacingOverlay();
-	removeFrameHeader();
-	removePreviewFrames();
+	removeEditorFrame();
 	destroyResponsive();
 	destroyZoom();
 	removeStrip();
@@ -212,7 +211,7 @@ if ( PluginMoreMenuItem ) {
 
 /* ── Keyboard shortcuts ─────────────────────── */
 
-bindShortcuts( toggle, deactivate, togglePlay );
+bindShortcuts( toggle, deactivate );
 
 /* ── DOM ready: inject toggle + auto-activate ── */
 

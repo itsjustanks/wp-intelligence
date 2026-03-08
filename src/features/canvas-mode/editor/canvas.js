@@ -1,12 +1,10 @@
-import {
-	CANVAS_PADDING,
-	state, refs,
-} from './state';
-import { syncFrameHeader } from './frame-header';
+import { state, refs } from './state';
+
+const CANVAS_PADDING = 56;
 
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 2;
-const DEFAULT_SCALE = 0.9;
+const DEFAULT_SCALE = 0.6;
 
 let scale = DEFAULT_SCALE;
 let rafId = 0;
@@ -23,12 +21,12 @@ function clamp( v, lo, hi ) {
 
 function flush() {
 	rafId = 0;
-	if ( ! refs.editorVisualEl ) {
+	const target = refs.editorVisualEl;
+	if ( ! target ) {
 		return;
 	}
-	refs.editorVisualEl.style.transform = 'scale(' + scale + ')';
+	target.style.transform = 'scale(' + scale + ')';
 	syncZoomLabel();
-	syncFrameHeader( scale );
 }
 
 function render() {
@@ -44,16 +42,18 @@ function renderNow() {
 }
 
 function beginSmooth() {
-	if ( ! refs.editorVisualEl ) {
+	const target = refs.editorVisualEl;
+	if ( ! target ) {
 		return;
 	}
 	clearTimeout( smoothTimer );
-	refs.editorVisualEl.classList.add( 'wpi-canvas-animating' );
+	target.classList.add( 'wpi-canvas-animating' );
 }
 
 function endSmooth() {
+	const target = refs.editorVisualEl;
 	smoothTimer = setTimeout( () => {
-		refs.editorVisualEl?.classList.remove( 'wpi-canvas-animating' );
+		target?.classList.remove( 'wpi-canvas-animating' );
 	}, 400 );
 }
 
@@ -71,11 +71,14 @@ function computeFitScale() {
 	if ( ! refs.contentEl || ! refs.editorVisualEl ) {
 		return DEFAULT_SCALE;
 	}
-	if ( state.viewport !== 'Desktop' ) {
-		return 1;
+	if ( state.viewport === 'Tablet' ) {
+		return 0.6;
+	}
+	if ( state.viewport === 'Mobile' ) {
+		return 0.7;
 	}
 	const availW = Math.max( 360, refs.contentEl.clientWidth );
-	const targetW = refs.workspaceEl?.offsetWidth ||
+	const targetW = refs.frameShellEl?.offsetWidth ||
 		( state.customWidth || refs.editorVisualEl.offsetWidth || 1440 );
 	const editorW = targetW + CANVAS_PADDING * 2;
 	const maxFit = clamp( availW / editorW, MIN_SCALE, MAX_SCALE );
@@ -91,6 +94,9 @@ export function initZoom() {
 
 	scale = computeFitScale();
 	renderNow();
+
+	refs.contentEl.scrollTop = 0;
+	refs.contentEl.scrollLeft = 0;
 
 	refs.contentEl.addEventListener( 'wheel', onWheel, { passive: false } );
 	refs.contentEl.addEventListener( 'pointerdown', onPanDown );
@@ -191,22 +197,11 @@ export function syncZoomLabel() {
 	}
 }
 
-/* ── Fit editor in viewport ────────────────── */
+/* ── Fit / refit editor in viewport ─────────── */
 
-export function fitAllFrames( smooth = false ) {
+export function fitCanvas( smooth = true ) {
 	scale = computeFitScale();
 	applyScale( smooth );
-}
-
-/* ── Refit: recalculate scale ──────────────── */
-
-export function refitCanvas( smooth = true ) {
-	scale = computeFitScale();
-	applyScale( smooth );
-}
-
-export function recenterX() {
-	// centering handled by CSS margin:auto
 }
 
 /* ── Zoom step (toolbar +/−) ───────────────── */
@@ -223,14 +218,13 @@ export function resetCanvas() {
 	rafId = 0;
 	clearTimeout( smoothTimer );
 	scale = DEFAULT_SCALE;
-	if ( refs.editorVisualEl ) {
-		refs.editorVisualEl.style.transform = '';
-		refs.editorVisualEl.classList.remove( 'wpi-canvas-animating' );
+	const target = refs.editorVisualEl;
+	if ( target ) {
+		target.style.transform = '';
+		target.classList.remove( 'wpi-canvas-animating' );
 	}
 }
 
 export function getCanvasScale() {
 	return scale;
 }
-
-export { MIN_SCALE, MAX_SCALE };

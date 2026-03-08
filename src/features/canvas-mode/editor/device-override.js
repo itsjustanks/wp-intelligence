@@ -1,26 +1,30 @@
 /**
- * Canvas viewport state.
+ * Canvas device state helpers.
  *
- * This is intentionally visual-only. We mirror the active viewport on the body
- * so CSS or integrations can respond, but we do not call WordPress preview
- * device APIs here because those trigger iframe-based editor mode.
+ * dispatchPreviewDevice — sets WP native preview device type (Desktop/Tablet/Mobile).
+ * resetCanvasDeviceType — cleanup on canvas deactivation.
  */
 
-const BODY_DEVICE_CLASSES = [
-	'wpi-canvas-device-desktop',
-	'wpi-canvas-device-tablet',
-	'wpi-canvas-device-mobile',
-];
+export function dispatchPreviewDevice( deviceType ) {
+	const data = window.wp?.data;
+	if ( ! data ) {
+		return;
+	}
 
-function setBodyDeviceClass( key ) {
-	BODY_DEVICE_CLASSES.forEach( ( cls ) => document.body.classList.remove( cls ) );
-	document.body.classList.add( 'wpi-canvas-device-' + key.toLowerCase() );
-}
+	const editPost = data.dispatch( 'core/edit-post' );
+	if ( editPost?.__experimentalSetPreviewDeviceType ) {
+		editPost.__experimentalSetPreviewDeviceType( deviceType );
+		return;
+	}
 
-export function setCanvasDeviceType( key ) {
-	setBodyDeviceClass( key );
+	const editorDispatch = data.dispatch( 'core/editor' );
+	if ( editorDispatch?.setDeviceType ) {
+		editorDispatch.setDeviceType( deviceType );
+	} else if ( editorDispatch?.__experimentalSetPreviewDeviceType ) {
+		editorDispatch.__experimentalSetPreviewDeviceType( deviceType );
+	}
 }
 
 export function resetCanvasDeviceType() {
-	setBodyDeviceClass( 'Desktop' );
+	dispatchPreviewDevice( 'Desktop' );
 }

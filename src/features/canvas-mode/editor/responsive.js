@@ -1,14 +1,12 @@
 import {
 	VIEWPORTS,
 	state,
-	getEditorVisual, viewportByKey,
+	getEditorVisual,
 } from './state';
-import { refitCanvas, syncZoomLabel } from './canvas';
-import { syncWidthDisplay, updatePills } from './ui';
-import { setCanvasDeviceType } from './device-override';
+import { fitCanvas } from './canvas';
+import { syncWidthDisplay } from './ui';
 
 const SNAP_THRESHOLD = 16;
-const HANDLE_WIDTH = 8;
 
 let _leftHandle = null;
 let _rightHandle = null;
@@ -18,19 +16,10 @@ let _dragSide = null;
 let _dragStartX = 0;
 let _dragStartWidth = 0;
 
-function getBreakpoints() {
-	return VIEWPORTS.map( ( vp ) => ( {
-		key: vp.key,
-		label: vp.label,
-		width: vp.previewWidth,
-	} ) );
-}
-
 function findSnapBreakpoint( width ) {
-	const bps = getBreakpoints();
-	for ( const bp of bps ) {
-		if ( Math.abs( width - bp.width ) <= SNAP_THRESHOLD ) {
-			return bp;
+	for ( const vp of VIEWPORTS ) {
+		if ( Math.abs( width - vp.previewWidth ) <= SNAP_THRESHOLD ) {
+			return vp;
 		}
 	}
 	return null;
@@ -80,12 +69,8 @@ function clearCustomWidth() {
 	}
 }
 
-function supportsManualResize() {
-	return state.viewport === 'Desktop';
-}
-
 function onPointerDown( e ) {
-	if ( ! state.active || ! supportsManualResize() ) {
+	if ( ! state.active ) {
 		return;
 	}
 	_dragging = true;
@@ -107,7 +92,7 @@ function onPointerDown( e ) {
 }
 
 function onPointerMove( e ) {
-	if ( ! _dragging || ! supportsManualResize() ) {
+	if ( ! _dragging ) {
 		return;
 	}
 
@@ -124,7 +109,7 @@ function onPointerMove( e ) {
 
 	const snap = findSnapBreakpoint( newWidth );
 	if ( snap ) {
-		newWidth = snap.width;
+		newWidth = snap.previewWidth;
 	}
 
 	applyWidth( newWidth );
@@ -145,16 +130,7 @@ function onPointerUp( e ) {
 	} catch ( _ex ) {} // eslint-disable-line no-empty
 
 	showSnapIndicator( null );
-
-	const matchedVp = VIEWPORTS.find(
-		( vp ) => vp.previewWidth === state.customWidth
-	);
-	if ( matchedVp ) {
-		state.viewport = matchedVp.key;
-		updatePills();
-	}
-
-	refitCanvas( true );
+	fitCanvas();
 }
 
 function createHandle( side ) {
@@ -201,34 +177,9 @@ export function destroyResponsive() {
 	_dragging = false;
 }
 
-export function switchToViewport( key ) {
-	const vp = viewportByKey( key );
-	if ( ! vp || key === state.viewport ) {
-		return;
-	}
-
-	state.viewport = key;
-	setCanvasDeviceType( vp.key );
-	if ( key === 'Desktop' ) {
-		applyWidth( state.customWidth || vp.previewWidth );
-	} else {
-		clearCustomWidth();
-	}
-	updatePills();
-	setTimeout( () => refitCanvas( true ), key === 'Desktop' ? 50 : 250 );
-}
-
 export function applyWidthFromInput( px ) {
 	const w = clampWidth( parseInt( px, 10 ) || 1440 );
 	applyWidth( w );
-
-	const matchedVp = VIEWPORTS.find( ( vp ) => vp.previewWidth === w );
-	if ( matchedVp ) {
-		state.viewport = matchedVp.key;
-		updatePills();
-	}
-
 	return w;
 }
 
-export { clearCustomWidth };

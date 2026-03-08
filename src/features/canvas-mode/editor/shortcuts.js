@@ -1,8 +1,7 @@
 import { state, refs, isTypingTarget } from './state';
-import { fitAllFrames } from './canvas';
-import { toggleSpacing } from './spacing-overlay';
+import { fitCanvas } from './canvas';
 
-export function bindShortcuts( onToggle, onDeactivate, onTogglePlay ) {
+export function bindShortcuts( onToggle, onDeactivate ) {
 	document.addEventListener( 'keydown', ( e ) => {
 		if ( ( e.metaKey || e.ctrlKey ) && e.shiftKey && e.code === 'KeyM' ) {
 			e.preventDefault();
@@ -12,21 +11,6 @@ export function bindShortcuts( onToggle, onDeactivate, onTogglePlay ) {
 		}
 
 		if ( ! state.active ) {
-			return;
-		}
-
-		if ( e.code === 'KeyP' && ! isTypingTarget( e.target ) &&
-			! e.metaKey && ! e.ctrlKey && ! e.altKey && ! e.shiftKey ) {
-			e.preventDefault();
-			onTogglePlay?.();
-			return;
-		}
-
-		if ( e.code === 'KeyI' && ! isTypingTarget( e.target ) &&
-			! e.metaKey && ! e.ctrlKey && ! e.altKey && ! e.shiftKey ) {
-			e.preventDefault();
-			const on = toggleSpacing();
-			refs.inspectBtnEl?.classList.toggle( 'is-active', on );
 			return;
 		}
 
@@ -44,7 +28,7 @@ export function bindShortcuts( onToggle, onDeactivate, onTogglePlay ) {
 
 		if ( ( e.metaKey || e.ctrlKey ) && e.code === 'Digit0' ) {
 			e.preventDefault();
-			fitAllFrames( true );
+			fitCanvas();
 		}
 	} );
 

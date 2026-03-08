@@ -1,10 +1,8 @@
 import { VIEWPORTS, state, refs, viewportByKey } from './state';
-import { zoomStep, fitAllFrames, refitCanvas, syncZoomLabel } from './canvas';
-import { PLAY_SVG, PAUSE_SVG } from './frames';
+import { zoomStep, fitCanvas } from './canvas';
 import { applyWidthFromInput } from './responsive';
 import { A11Y_MODES, setAccessibilityMode, getAccessibilityMode } from './accessibility';
-import { toggleSpacing, isSpacingEnabled } from './spacing-overlay';
-import { syncFrameHeader } from './frame-header';
+import { dispatchPreviewDevice } from './device-override';
 
 let _contentResizeObserver = null;
 let _contentResizeTimer = null;
@@ -95,7 +93,7 @@ export function updateToggle() {
 	);
 }
 
-export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
+export function injectStrip( onDeactivate ) {
 	if ( refs.stripEl ) {
 		return;
 	}
@@ -147,12 +145,6 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 	divider0.className = 'wpi-canvas-toolbar__divider';
 	refs.stripEl.appendChild( divider0 );
 
-	const vpRanges = {
-		Desktop: '1400+',
-		Tablet: '800\u20131399',
-		Mobile: '0\u2013799',
-	};
-
 	const pills = document.createElement( 'div' );
 	pills.className = 'wpi-canvas-toolbar__group';
 	VIEWPORTS.forEach( ( vp ) => {
@@ -162,12 +154,15 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 			( vp.key === state.viewport ? ' is-active' : '' );
 		btn.setAttribute( 'data-vp', vp.key );
 		btn.setAttribute( 'type', 'button' );
-		btn.setAttribute(
-			'data-tooltip',
-			vp.label + ' \u2014 ' + ( vpRanges[ vp.key ] || vp.previewWidth + 'px' )
-		);
+		btn.setAttribute( 'data-tooltip', vp.label );
 		btn.textContent = vp.label;
-		btn.addEventListener( 'click', () => onSwitchViewport( vp.key ) );
+		btn.addEventListener( 'click', () => {
+			state.viewport = vp.key;
+			dispatchPreviewDevice( vp.key );
+			updatePills();
+			syncWidthDisplay();
+			fitCanvas();
+		} );
 		pills.appendChild( btn );
 	} );
 	refs.stripEl.appendChild( pills );
@@ -189,7 +184,7 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 		'wpi-canvas-toolbar__zoom-val wpi-canvas-toolbar__btn';
 	refs.zoomLabelEl.textContent = '50%';
 	refs.zoomLabelEl.setAttribute( 'data-tooltip', 'Reset zoom' );
-	refs.zoomLabelEl.addEventListener( 'click', () => fitAllFrames( true ) );
+	refs.zoomLabelEl.addEventListener( 'click', () => fitCanvas() );
 	zoom.appendChild( refs.zoomLabelEl );
 
 	const zoomInBtn = mkBtn( '+', () => zoomStep( 0.1 ) );
@@ -206,41 +201,14 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 	const actions = document.createElement( 'div' );
 	actions.className = 'wpi-canvas-toolbar__group';
 
-	const fitBtn = mkBtn( '', () => fitAllFrames( true ) );
+	const fitBtn = mkBtn( '', () => fitCanvas() );
 	fitBtn.innerHTML =
 		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
 		'<path d="M4 4h6v2H6v4H4V4zm16 0h-6v2h4v4h2V4z' +
 		'M4 20h6v-2H6v-4H4v6zm16 0h-6v-2h4v-4h2v6z"/></svg>';
-	fitBtn.setAttribute( 'aria-label', 'Fit all viewports' );
-	fitBtn.setAttribute( 'data-tooltip', 'Fit all (\u2318+0)' );
+	fitBtn.setAttribute( 'aria-label', 'Fit to viewport' );
+	fitBtn.setAttribute( 'data-tooltip', 'Fit (\u2318+0)' );
 	actions.appendChild( fitBtn );
-
-	const playBtn = document.createElement( 'button' );
-	playBtn.className = 'wpi-canvas-toolbar__btn wpi-canvas-toolbar__play' +
-		( state.playing ? ' is-playing' : '' );
-	playBtn.setAttribute( 'type', 'button' );
-	playBtn.innerHTML = state.playing ? PAUSE_SVG : PLAY_SVG;
-	playBtn.setAttribute( 'aria-label',
-		state.playing ? 'Pause preview' : 'Play preview' );
-	playBtn.setAttribute( 'data-tooltip',
-		state.playing ? 'Pause (P)' : 'Preview (P)' );
-	playBtn.addEventListener( 'click', () => onTogglePlay?.() );
-	refs.playBtnEl = playBtn;
-	actions.appendChild( playBtn );
-
-	const inspectBtn = mkBtn( '', () => {
-		const on = toggleSpacing();
-		inspectBtn.classList.toggle( 'is-active', on );
-	} );
-	inspectBtn.innerHTML =
-		'<svg class="wpi-canvas-toolbar__icon" viewBox="0 0 24 24">' +
-		'<path d="M2 2h4v2H4v2H2V2zm16 0h4v4h-2V4h-2V2zM2 18h2v2h2v2H2v-4zm18 2h-2v2h4v-4h-2v2z' +
-		'M7 7h10v10H7V7zm2 2v6h6V9H9z"/></svg>';
-	inspectBtn.setAttribute( 'aria-label', 'Inspect spacing (I)' );
-	inspectBtn.setAttribute( 'data-tooltip', 'Inspect (I)' );
-	inspectBtn.classList.toggle( 'is-active', isSpacingEnabled() );
-	refs.inspectBtnEl = inspectBtn;
-	actions.appendChild( inspectBtn );
 
 	const a11yWrap = document.createElement( 'div' );
 	a11yWrap.className = 'wpi-canvas-toolbar__a11y-wrap';
@@ -322,7 +290,7 @@ export function injectStrip( onSwitchViewport, onDeactivate, onTogglePlay ) {
 		}
 		clearTimeout( _contentResizeTimer );
 		_contentResizeTimer = setTimeout( () => {
-			refitCanvas( true );
+			fitCanvas();
 		}, 80 );
 	} );
 	_contentResizeObserver.observe( refs.contentEl );
@@ -340,9 +308,7 @@ export function removeStrip() {
 		refs.stripEl.remove();
 		refs.stripEl = null;
 		refs.zoomLabelEl = null;
-		refs.playBtnEl = null;
 		refs.a11yBtnEl = null;
-		refs.inspectBtnEl = null;
 	}
 }
 
@@ -360,7 +326,6 @@ export function syncWidthDisplay( widthPx ) {
 		const w = state.customWidth || vp.previewWidth;
 		refs.widthDisplayEl.value = Math.round( w ) + 'px';
 	}
-	syncFrameHeader();
 }
 
 export function updatePills() {
@@ -375,8 +340,6 @@ export function updatePills() {
 				node.getAttribute( 'data-vp' ) === state.viewport
 			);
 		} );
-	syncZoomLabel();
-	syncWidthDisplay();
 }
 
 function mkBtn( text, handler ) {
